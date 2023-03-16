@@ -13,8 +13,11 @@ export class AuthController {
       loginDto.email,
       loginDto.password,
     );
-    if (!user) {
+    if (!user || loginDto.password.length <= 0) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+    if (!user.verified) {
+      throw new UnauthorizedException('Unverified User');
     }
     const accessToken = await this.authService.login(user);
     return { accessToken };

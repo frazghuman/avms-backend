@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Param, Put, Delete, UsePipes, NotFoundExce
 import { UserService } from '../services/user.service';
 import { User } from '../schemas/user.schema';
 import { Types } from 'mongoose';
-import { JoiValidationPipe } from '../../pipes/joi-validation.pipe';
+import { JoiValidationPipe } from '../../common/pipes/joi-validation.pipe';
 import * as Joi from 'joi';
 import { RoleService } from '../services/role.service';
 

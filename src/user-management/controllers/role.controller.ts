@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Put, Param, Delete, UsePipes } from '@nest
 import { RoleService } from '../services/role.service';
 import { Role } from '../schemas/role.schema';
 import * as Joi from 'joi';
-import { JoiValidationPipe } from '../../pipes/joi-validation.pipe';
+import { JoiValidationPipe } from '../../common/pipes/joi-validation.pipe';
 import { Types } from 'mongoose';
 
 @Controller('roles')

@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserController } from './controllers/user.controller';
-import { UserService } from './services/user.service';
-import { User, UserSchema } from './schemas/user.schema';
 import { Role, RoleSchema } from './schemas/role.schema';
 import { UserToken, UserTokenSchema } from './schemas/user-token.schema';
 import { RoleService } from './services/role.service';
@@ -15,12 +13,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth-management/auth.service';
 import { AuthController } from './auth-management/auth.controller';
 import { JwtStrategy } from './auth-management/jwt.strategy';
-import { PipeModule } from '../pipes/pipe.module';
+import { UserServiceModule } from './services/user-service.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
       { name: UserToken.name, schema: UserTokenSchema },
     ]),
@@ -33,11 +30,10 @@ import { PipeModule } from '../pipes/pipe.module';
       }),
       inject: [ConfigService],
     }),
-    // PipeModule
+    UserServiceModule
   ],
   controllers: [UserController, RoleController, UserTokenController, AuthController],
   providers: [
-    UserService,
     RoleService,
     UserTokenService,
     AuthService,
