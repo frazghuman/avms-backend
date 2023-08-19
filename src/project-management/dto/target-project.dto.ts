@@ -15,7 +15,7 @@ export class CreateTargetProjectDto {
 
   @IsNotEmpty()
   @IsString()
-  filepath: string;
+  file: string;
 
   @IsOptional()
   @IsArray()

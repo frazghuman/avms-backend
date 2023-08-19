@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsNumber, IsDateString } from 'class-validator';
+import { HeaderColumnTitle } from '../interfaces/header-column-title.interface';
 
 export class CreateProjectFileDto {
   @IsString()
@@ -17,8 +18,16 @@ export class CreateProjectFileDto {
   size: number;
 
   @IsOptional()
+  @IsString()
+  sheetName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  headerRowNo?: number;
+
+  @IsOptional()
   @IsString({ each: true })
-  headerRow: string[];
+  headerRow: HeaderColumnTitle[];
 
   @IsDateString()
   uploadDate: Date;

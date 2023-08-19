@@ -20,6 +20,7 @@ export class TargetProjectService {
     return this.targetProjectModel.find()
       .populate('project', 'name description startDate endDate status')
       .populate('targetEntities', 'name alias')
+      .populate('ProjectFile', 'filename originalname mimetype headerRow headerRowNo sheetName size uploadDate md5')
       .populate('teamMembers', 'name email')
       .exec();
   }
@@ -28,6 +29,7 @@ export class TargetProjectService {
     return this.targetProjectModel.findById(id)
       .populate('project', 'name description startDate endDate status')
       .populate('targetEntities', 'name alias')
+      .populate('ProjectFile', 'filename originalname mimetype headerRow headerRowNo sheetName size uploadDate md5')
       .populate('teamMembers', 'name email')
       .exec();
   }

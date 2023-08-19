@@ -11,8 +11,8 @@ export class TargetProject extends Document {
   @Prop({ required: true, type: Types.ObjectId, ref: 'Project' })
   project: Types.ObjectId;
 
-  @Prop({ required: true })
-  filePath: string;
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'ProjectFile' }] })
+  file?: string;
 
   @Prop({ type: [{}] })
   fileData?: Record<string, any>[];

@@ -28,5 +28,11 @@ export class AuthController {
   async refreshToken(@Request() req) {
     return this.authService.refreshToken(req.body.user);
   }
+
+  @Post('logout')
+  async logout() {
+    await this.authService.logout();
+    return { message: 'logout successful' };
+  }
   
 }

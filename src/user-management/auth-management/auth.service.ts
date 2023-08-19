@@ -67,4 +67,10 @@ export class AuthService {
   
     return { accessToken: accessToken };
   }
+
+  
+  logout() {
+    // TODO
+    return true;
+  }
 }

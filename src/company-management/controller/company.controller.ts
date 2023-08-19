@@ -31,6 +31,8 @@ export class CompanyController {
   }
 
   @Put(':id')
+  @UseGuards(PermissionAuthGuard)
+  @SetMetadata('permissions', ['manage_companies'])
   async update(@Param('id') id: string, @Body() updateCompanyDto: CreateCompanyDto): Promise<Company> {
     return this.companyService.update(id, updateCompanyDto);
   }

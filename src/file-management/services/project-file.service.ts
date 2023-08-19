@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ProjectService } from 'src/project-management/services/project.service';
+import { ProjectService } from '../../project-management/services/project.service';
 import { CreateProjectFileDto } from '../dto/file-project.dto';
 import { ProjectFile } from '../schemas/project-file.schema';
 import * as crypto from 'crypto';

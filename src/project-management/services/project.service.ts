@@ -17,7 +17,7 @@ export class ProjectService {
   }
 
   async findAll(): Promise<Project[]> {
-    return this.projectModel.find().populate('teamMembers', 'name email').exec();
+    return this.projectModel.find().populate('teamMembers', 'name email').populate('company', 'name').exec();
   }
 
   async findOne(id: string): Promise<Project> {

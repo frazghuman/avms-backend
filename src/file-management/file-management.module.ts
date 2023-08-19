@@ -16,7 +16,7 @@ import { ProjectServiceModule } from '../project-management/services/project-ser
         destination: './uploads',
         filename: (req, file, cb) => {
           // Validate file format here
-          if (!file.originalname.match(/\.(xls|xlsx|xlsm|xlsb|xltx|xltm)$/)) {
+          if (!file.originalname.match(/\.(xls|xlsx|xlsm|xlsb|xltx|xltm|wav)$/)) {
             return cb(new Error('Invalid file format'));
           }
         
@@ -27,7 +27,7 @@ import { ProjectServiceModule } from '../project-management/services/project-ser
       }),
       fileFilter: (req, file, cb) => {
         // check if the file format is valid
-        if (!file.originalname.match(/\.(xls|xlsx|xlsm|xlsb|xltx|xltm)$/)) {
+        if (!file.originalname.match(/\.(xls|xlsx|xlsm|xlsb|xltx|xltm|wav)$/)) {
           return cb(new Error('Only Excel files are allowed!'), false);
         }
         cb(null, true);

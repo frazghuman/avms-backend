@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { HeaderColumnTitle } from '../interfaces/header-column-title.interface';
 
 export type ProjectFileDocument = ProjectFile & Document;
 
@@ -18,7 +19,13 @@ export class ProjectFile extends Document {
   mimetype: string;
 
   @Prop()
-  headerRow?: string[];
+  sheetName?: string;
+
+  @Prop()
+  headerRowNo?: number;
+
+  @Prop()
+  headerRow?: HeaderColumnTitle[];
 
   @Prop({ required: true })
   size: number;

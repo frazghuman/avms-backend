@@ -42,7 +42,9 @@ export class FileUploadController {
     const fileContent = fs.readFileSync(filePath);
 
     const workbook = xlsx.read(fileContent);
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const sheetName = workbook.SheetNames[0];
+    createProjectFileDto['sheetName'] = sheetName;
+    const worksheet = workbook.Sheets[sheetName];
     /* const data = xlsx.utils.sheet_to_json(worksheet, {
       header: requestBody?.headerIndex || 0,
       defval: '',
@@ -64,13 +66,17 @@ export class FileUploadController {
 
     // Extract the header row as an array of strings
     const headerRow = [];
+    const headerRowNo = requestBody?.headerRowIndex || 1;
     for (const cellAddress in worksheet) {
       const cell = worksheet[cellAddress];
-      if (cellAddress[1] === '1') {
-        headerRow.push(cell.w);
+      if (this.getNumberFromAlphaNumeric(cellAddress) === headerRowNo) {
+        const columnName = this.getAlphabeticPartFromAlphaNumeric(cellAddress);
+        const title = this.cleanString(cell.w);
+        headerRow.push({ columnIndex: columnName, title: title});
       }
     }
 
+    createProjectFileDto['headerRowNo'] = Number(headerRowNo);
     createProjectFileDto['headerRow'] = headerRow;
     await this.projectFileService.create(createProjectFileDto);
 
@@ -78,5 +84,19 @@ export class FileUploadController {
       headerRow: headerRow,
       message: 'File uploaded and parsed successfully',
     };
+  }
+
+  getNumberFromAlphaNumeric = (str: string): number => {
+    const match = str.match(/\d+/); // Matches one or more digits in the string
+    return match ? parseInt(match[0], 10) : 0; // Converts the matched digits to a number or returns 0 if no match found
+  };
+
+  getAlphabeticPartFromAlphaNumeric = (str: string): string => {
+    return str.match(/[A-Za-z]+/)[0];
+  };
+
+  cleanString = (input: string): string => {
+    const regex = /[\r\n]+/g;
+    return input.replace(regex, ' ').replace(/\s+/g, ' ').trim();
   }
 }

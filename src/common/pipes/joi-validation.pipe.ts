@@ -59,7 +59,7 @@ export const targetEntityValidationSchema = Joi.object({
 export const targetProjectValidationSchema = Joi.object({
   targetEntities: Joi.array().items(Joi.string().required()).min(1).required(),
   project: Joi.string().required(),
-  filePath: Joi.string().required(),
+  file: Joi.string(),
   fileData: Joi.array().items(Joi.any()),
   teamMembers: Joi.array().items(Joi.string())
 });
