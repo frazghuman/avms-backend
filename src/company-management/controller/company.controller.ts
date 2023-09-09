@@ -33,6 +33,7 @@ export class CompanyController {
   @Put(':id')
   @UseGuards(PermissionAuthGuard)
   @SetMetadata('permissions', ['manage_companies'])
+  // @UsePipes(new JoiValidationPipe(companyValidationSchema))
   async update(@Param('id') id: string, @Body() updateCompanyDto: CreateCompanyDto): Promise<Company> {
     return this.companyService.update(id, updateCompanyDto);
   }

@@ -1,45 +1,35 @@
-import { IsString, IsOptional, IsUrl, IsDateString, IsObject } from 'class-validator';
+import { IsNotEmpty, IsString, ValidateNested, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
 
-export class CreateCompanyDto {
+export class ContactPersonDto {
+  @IsNotEmpty()
   @IsString()
   name: string;
 
+  @IsNotEmpty()
   @IsString()
-  description: string;
+  designation: string;
 
+  @IsNotEmpty()
   @IsString()
-  industry: string;
-
-  @IsDateString()
-  founded: string;
-
-  @IsString()
-  headquarters: string;
-
-  @IsString()
-  size: string;
-
-  @IsUrl()
-  @IsOptional()
-  website: string;
-
-  @IsString()
-  @IsOptional()
   email: string;
 
+  @IsNotEmpty()
   @IsString()
-  @IsOptional()
-  phone: string;
+  phoneNo: string;
+}
 
-  @IsObject()
-  @IsOptional()
-  socialMedia: Record<string, string>;
+export class CreateCompanyDto {
+  @IsNotEmpty()
+  @IsString()
+  name: string;
 
-  @IsUrl()
-  @IsOptional()
-  logo: string;
+  @IsNotEmpty()
+  @IsString()
+  code: string;
 
-  @IsUrl()
-  @IsOptional()
-  coverPhoto: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ContactPersonDto)
+  contactPersons: ContactPersonDto[];
 }

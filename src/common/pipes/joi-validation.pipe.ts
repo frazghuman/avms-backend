@@ -8,41 +8,32 @@ export class JoiValidationPipe implements PipeTransform {
   transform(value: any) {
     const { error } = this.schema.validate(value);
     if (error) {
-        throw new BadRequestException(error.details.map((detail) => detail.message));
+      throw new BadRequestException(error.details.map((detail) => detail.message));
     }
     return value;
   }
 }
 
+// company-validation.schema.js
 export const companyValidationSchema = Joi.object({
   name: Joi.string().required(),
-  description: Joi.string(),
-  industry: Joi.string(),
-  founded: Joi.date(),
-  headquarters: Joi.string(),
-  size: Joi.number(),
-  website: Joi.string().uri(),
-  email: Joi.string().email().required(),
-  phone: Joi.string().required(),
-  socialMedia: Joi.object({
-    facebook: Joi.string().uri(),
-    twitter: Joi.string().uri(),
-    linkedin: Joi.string().uri(),
-    instagram: Joi.string().uri(),
-  }),
-  logo: Joi.string().uri(),
-  coverPhoto: Joi.string().uri(),
+  code: Joi.string().required(),
+  contactPersons: Joi.array().items(
+    Joi.object({
+      name: Joi.string().required(),
+      designation: Joi.string().required(),
+      email: Joi.string().email().required(),
+      phoneNo: Joi.string().required(),
+    })
+  ),
 });
 
 export const projectValidationSchema = Joi.object({
   name: Joi.string().required(),
-  description: Joi.string(),
-  startDate: Joi.date(),
-  endDate: Joi.date(),
-  status: Joi.string(),
-  teamMembers: Joi.array().items(Joi.string()),
-  budget: Joi.number(),
-  company: Joi.string(),
+  valuationDate: Joi.date().required(),
+  valuationType: Joi.string().required(),
+  stage: Joi.string().required(),
+  company: Joi.string().required()
 });
 
 export const targetEntityValidationSchema = Joi.object({

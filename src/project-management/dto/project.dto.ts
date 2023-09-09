@@ -1,75 +1,24 @@
-import { IsDateString, IsOptional, IsString, IsArray, IsNotEmpty, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
-import { User } from '../../user-management/schemas/user.schema';
 
-export class CreateProjectDto {
-  @IsString()
+import { IsString, IsNotEmpty, IsDate } from 'class-validator';
+
+export class ProjectDto {
   @IsNotEmpty()
+  @IsString()
   name: string;
 
+  @IsNotEmpty()
+  @IsDate()
+  valuationDate: Date;
+
+  @IsNotEmpty()
   @IsString()
-  @IsOptional()
-  description?: string;
+  valuationType: string;
 
-  @IsDateString()
-  @IsOptional()
-  startDate?: Date;
-
-  @IsDateString()
-  @IsOptional()
-  endDate?: Date;
-
+  @IsNotEmpty()
   @IsString()
-  @IsOptional()
-  status?: string;
+  stage: string;
 
-  @IsArray()
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => User)
-  teamMembers?: User[];
-
+  @IsNotEmpty()
   @IsString()
-  @IsOptional()
-  budget?: string;
-
-  @IsString()
-  @IsOptional()
-  company?: string;
+  company: string;
 }
-
-export class UpdateProjectDto {
-    @IsString()
-    @IsNotEmpty()
-    name: string;
-  
-    @IsString()
-    @IsOptional()
-    description?: string;
-  
-    @IsDateString()
-    @IsOptional()
-    startDate?: Date;
-  
-    @IsDateString()
-    @IsOptional()
-    endDate?: Date;
-  
-    @IsString()
-    @IsOptional()
-    status?: string;
-  
-    @IsArray()
-    @IsOptional()
-    @ValidateNested({ each: true })
-    @Type(() => User)
-    teamMembers?: User[];
-  
-    @IsString()
-    @IsOptional()
-    budget?: string;
-  
-    @IsString()
-    @IsOptional()
-    company?: string;
-  }

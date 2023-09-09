@@ -1,4 +1,10 @@
 {
   "singleQuote": true,
-  "trailingComma": "all"
+  "trailingComma": "all",
+  "endOfLine": "auto",
+  "rules": {
+    "prettier/prettier": ["error",{
+      "endOfLine": "auto"}
+    ]
+  }
 }

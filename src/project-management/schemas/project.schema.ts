@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { User } from '../../user-management/schemas/user.schema';
 
 export type ProjectDocument = Project & Document;
 
@@ -9,26 +8,17 @@ export class Project {
   @Prop({ required: true })
   name: string;
 
-  @Prop()
-  description: string;
+  @Prop({ required: true })
+  valuationDate: Date;
 
-  @Prop()
-  startDate?: Date;
+  @Prop({ required: true })
+  valuationType: string;
 
-  @Prop()
-  endDate?: Date;
+  @Prop({ required: true })
+  stage: string;
 
-  @Prop()
-  status?: string;
-
-  @Prop()
-  budget?: number;
-
-  @Prop({ type: [{ type: String, ref: 'User' }] })
-  teamMembers?: User[];
-
-  @Prop({ type: String, ref: 'Company' })
-  company?: string;
+  @Prop({ required: true, type: String, ref: 'Company' })
+  company: string;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);
