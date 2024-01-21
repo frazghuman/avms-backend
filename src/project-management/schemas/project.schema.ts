@@ -1,7 +1,23 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { ContractDto } from '../dto/project.dto';
 
 export type ProjectDocument = Project & Document;
+
+@Schema()
+export class ContactPerson {
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  designation: string;
+
+  @Prop({ required: true })
+  email: string;
+
+  @Prop({ required: true })
+  phoneNo: string;
+}
 
 @Schema()
 export class Project {
@@ -19,6 +35,24 @@ export class Project {
 
   @Prop({ required: true, type: String, ref: 'Company' })
   company: string;
+
+  @Prop({ required: true, type: ContactPerson })
+  contactPerson: ContactPerson;
+
+  @Prop({ type: 'Mixed' }) // Use 'Mixed' type for the contract property
+  contract: ContractDto;
+
+  @Prop({ type: 'Mixed' })
+  lastYearInfo: any;
+
+  @Prop({ type: 'Mixed' })
+  dataRequirements: any;
+
+  @Prop({ type: 'Mixed' })
+  receivedDataFiles: any;
+
+  @Prop({ type: 'Mixed' })
+  compiledDataFiles: any;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

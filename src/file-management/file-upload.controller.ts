@@ -1,8 +1,12 @@
 import {
   Body,
   Controller,
+  HttpStatus,
   Post,
+  Req,
+  Res,
   UploadedFile,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -11,10 +15,37 @@ import * as fs from 'fs';
 import {formatDate} from './../utils/utils.functions';
 import { ProjectFileService } from './services/project-file.service';
 import { CreateProjectFileDto } from './dto/file-project.dto';
+import { Request, Response } from 'express';
 
 @Controller('file')
 export class FileUploadController {
   constructor(private projectFileService: ProjectFileService) {}
+
+  @Post('upload/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadExcelFile(@UploadedFile() file, @Req() req: Request, @Res() res: Response) {
+    // Send response back
+    res.status(HttpStatus.OK).json({
+      data: {
+        filename: file.originalname,
+        fileUrl: `/files/${file.filename}`,
+      },
+      message: 'File uploaded successfully'
+    });
+  }
+
+  @Post('upload/docs')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadDocFile(@UploadedFile() file, @Req() req: Request, @Res() res: Response) {
+    // Send response back
+    res.status(HttpStatus.OK).json({
+      data: {
+        filename: file.originalname,
+        fileUrl: `/files/${file.filename}`,
+      },
+      message: 'File uploaded successfully'
+    });
+  }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))

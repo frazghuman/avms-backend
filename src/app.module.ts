@@ -8,6 +8,8 @@ import { TodoModule } from './todo/todo.module';
 import { UserModule } from './user-management/user.module';
 import { ProjectModule } from './project-management/project.module';
 import { CorsMiddleware } from './middlewares/cors.middleware';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 @Module({
   imports: [
@@ -16,7 +18,11 @@ import { CorsMiddleware } from './middlewares/cors.middleware';
     FileManagementModule,
     UserModule,
     CompanyModule,
-    ProjectModule
+    ProjectModule,
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'uploads'),
+      serveRoot: '/files/',
+    }),
   ],
   controllers: [
     AppController

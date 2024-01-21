@@ -28,13 +28,46 @@ export const companyValidationSchema = Joi.object({
   ),
 });
 
+export const projectContractValidationSchema = Joi.object({
+  refNo: Joi.string().optional(),
+  address: Joi.string().optional(),
+  refDetails: Joi.string().optional(),
+  scopeOfWork: Joi.array().items(Joi.string().optional()),
+  dataRequired: Joi.string().optional(),
+  fee: Joi.object({
+    amount: Joi.number().optional(),
+    currency: Joi.string().optional(),
+    detail: Joi.string().optional(),
+    upfrontPercentage: Joi.number().optional(),
+    upfrontDetail: Joi.string().optional(),
+  }).optional(),
+  customerSatisfactionMessage: Joi.string().optional(),
+  promisorInfo: Joi.object({
+    signature: Joi.binary().optional(),
+    name: Joi.string().optional(),
+    designation: Joi.string().optional(),
+  }).optional(),
+});
+
 export const projectValidationSchema = Joi.object({
   name: Joi.string().required(),
   valuationDate: Joi.date().required(),
   valuationType: Joi.string().required(),
   stage: Joi.string().required(),
-  company: Joi.string().required()
+  company: Joi.string().required(),
+  contactPerson: Joi.object({
+    name: Joi.string().required(),
+    designation: Joi.string().required(),
+    email: Joi.string().email().required(),
+    phoneNo: Joi.string().required(),
+  }).required(),
+  contract: projectContractValidationSchema.optional(),
+  lastYearInfo: Joi.object().optional(),
+  dataRequirements: Joi.object().optional(),
+  receivedDataFiles: Joi.object().optional(),
+  compiledDataFiles: Joi.object().optional(),
 });
+
 
 export const targetEntityValidationSchema = Joi.object({
   name: Joi.string().required(),
