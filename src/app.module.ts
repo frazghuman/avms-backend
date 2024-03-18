@@ -10,6 +10,7 @@ import { ProjectModule } from './project-management/project.module';
 import { CorsMiddleware } from './middlewares/cors.middleware';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { join } from 'path';
     UserModule,
     CompanyModule,
     ProjectModule,
+    SettingsModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/files/',

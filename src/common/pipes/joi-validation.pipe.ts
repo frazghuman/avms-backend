@@ -1,11 +1,15 @@
-import { Injectable, PipeTransform, BadRequestException } from '@nestjs/common';
+import { Injectable, PipeTransform, BadRequestException, ArgumentMetadata } from '@nestjs/common';
 import * as Joi from 'joi';
 
 @Injectable()
 export class JoiValidationPipe implements PipeTransform {
   constructor(private schema: Joi.Schema) {}
 
-  transform(value: any) {
+  transform(value: any, metadata: ArgumentMetadata) {
+    if (metadata.type !== 'body') {
+      return value; // Skip validation for non-body parts of the request
+    }
+
     const { error } = this.schema.validate(value);
     if (error) {
       throw new BadRequestException(error.details.map((detail) => detail.message));
@@ -63,9 +67,10 @@ export const projectValidationSchema = Joi.object({
   }).required(),
   contract: projectContractValidationSchema.optional(),
   lastYearInfo: Joi.object().optional(),
-  dataRequirements: Joi.object().optional(),
+  requestedDataFiles: Joi.object().optional(),
   receivedDataFiles: Joi.object().optional(),
   compiledDataFiles: Joi.object().optional(),
+  assumptions: Joi.object().optional(),
 });
 
 
@@ -86,4 +91,16 @@ export const targetProjectValidationSchema = Joi.object({
   file: Joi.string(),
   fileData: Joi.array().items(Joi.any()),
   teamMembers: Joi.array().items(Joi.string())
+});
+
+export const mortalityRateValidationSchema = Joi.object({
+  mortalityRateName: Joi.string().required().min(1).max(100),
+  value: Joi.array().items(Joi.number().min(0).max(1)).required(), // Ensure non-negative numbers
+  order: Joi.number().integer().required().min(1).max(102) // Ensure order is an integer
+});
+
+export const withdrawalRateValidationSchema = Joi.object({
+  withdrawalRateName: Joi.string().required().min(1).max(100),
+  value: Joi.array().items(Joi.number().min(0).max(1)).required(), // Ensure non-negative numbers
+  order: Joi.number().integer().required().min(1).max(102) // Ensure order is an integer
 });

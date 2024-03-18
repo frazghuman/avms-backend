@@ -46,13 +46,16 @@ export class Project {
   lastYearInfo: any;
 
   @Prop({ type: 'Mixed' })
-  dataRequirements: any;
+  requestedDataFiles: any;
 
   @Prop({ type: 'Mixed' })
   receivedDataFiles: any;
 
   @Prop({ type: 'Mixed' })
   compiledDataFiles: any;
+
+  @Prop({ type: 'Mixed' })
+  assumptions: any;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

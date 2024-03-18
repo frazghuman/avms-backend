@@ -116,7 +116,7 @@ export class ProjectDto {
 
   @IsOptional()
   @IsObject()
-  dataRequirements: any;
+  requestedDataFiles: any;
 
   @IsOptional()
   @IsObject()
@@ -125,4 +125,8 @@ export class ProjectDto {
   @IsOptional()
   @IsObject()
   compiledDataFiles: any;
+
+  @IsOptional()
+  @IsObject()
+  assumptions: any;
 }
