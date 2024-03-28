@@ -43,4 +43,8 @@ export class ProjectFileService {
     const hash = crypto.createHash('md5').update(data).digest('hex');
     return hash;
   }
+
+  async readFileByUrl(): Promise<any[]> {
+    return Promise.resolve([])
+  }
 }

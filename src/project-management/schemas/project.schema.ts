@@ -56,6 +56,9 @@ export class Project {
 
   @Prop({ type: 'Mixed' })
   assumptions: any;
+
+  @Prop({ type: 'Mixed' })
+  benifitsStructure: any;
 }
 
 export const ProjectSchema = SchemaFactory.createForClass(Project);

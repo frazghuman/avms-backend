@@ -1,20 +1,15 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MortalityRateController } from './controller/mortality-rate.controller';
-import { MortalityRateService } from './services/mortality-rate.service';
-import { MortalityRate, MortalityRateSchema } from './schemas/mortality-rate.schema';
-import { WithdrawalRateController } from './controller/withdrawal-rate.controller';
-import { WithdrawalRateService } from './services/withdrawal-rate.service';
-import { WithdrawalRate, WithdrawalRateSchema } from './schemas/withdrawal-rate.schema';
+import { DecrementRate, DecrementRateSchema } from './schemas/decrament-rate.schema';
+import { DecrementRateController } from './controller/decrement-rate.controller';
+import { DecrementRateService } from './services/decrement-rate.service';
+import { DecrementRateModule } from './decrement-rate.module';
 
 @Module({
     imports: [
-        MongooseModule.forFeature([
-          { name: MortalityRate.name, schema: MortalityRateSchema },
-          { name: WithdrawalRate.name, schema: WithdrawalRateSchema },
-        ]),
+        DecrementRateModule
       ],
-    controllers: [MortalityRateController, WithdrawalRateController],
-    providers: [MortalityRateService, WithdrawalRateService],
+    controllers: [DecrementRateController],
+    providers: [],
 })
 export class SettingsModule {}

@@ -8,11 +8,13 @@ import { ProjectFileService } from './services/project-file.service';
 import { ProjectServiceModule } from '../project-management/services/project-service.module';
 import { DocsMiddleware, ExcelMiddleware } from '../middlewares/allowed-file-formats.middleware';
 import * as path from 'path';
+import { ExcelServiceModule } from './services/excel.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: ProjectFile.name, schema: ProjectFileSchema }]),
     ProjectServiceModule,
+    ExcelServiceModule,
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads',

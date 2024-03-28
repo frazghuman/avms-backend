@@ -10,6 +10,7 @@ import { TargetProject, TargetProjectSchema } from './schemas/target-project.sch
 import { ProjectServiceModule } from './services/project-service.module';
 import { TargetEntityService } from './services/target-entity.service';
 import { TargetProjectService } from './services/target-project.service';
+import { ExcelServiceModule } from '../file-management/services/excel.module';
 
 @Module({
     imports: [

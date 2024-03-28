@@ -23,6 +23,16 @@ export class ProjectController {
     return this.projectService.findOne(id);
   }
 
+  @Get('decrament-table/:projectId')
+  async getDecramentTable(@Param('projectId') projectId: string) {
+    return this.projectService.calculateDecrementTable(projectId);
+  }
+
+  @Get('calculate-ald/:projectId')
+  async getCalculateALD(@Param('projectId') projectId: string) {
+    return this.projectService.calculateALD(projectId);
+  }
+
   @Post()
   @UsePipes(new JoiValidationPipe(projectValidationSchema))
   async create(@Body() project: ProjectDto) {
@@ -44,5 +54,7 @@ export class ProjectController {
   async delete(@Param('id') id: string) {
     return this.projectService.remove(id);
   }
+
+  
 
 }

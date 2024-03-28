@@ -71,6 +71,7 @@ export const projectValidationSchema = Joi.object({
   receivedDataFiles: Joi.object().optional(),
   compiledDataFiles: Joi.object().optional(),
   assumptions: Joi.object().optional(),
+  benifitsStructure: Joi.object().optional(),
 });
 
 
@@ -91,6 +92,14 @@ export const targetProjectValidationSchema = Joi.object({
   file: Joi.string(),
   fileData: Joi.array().items(Joi.any()),
   teamMembers: Joi.array().items(Joi.string())
+});
+
+export const decrementRateValidationSchema = Joi.object({
+  decrementRateName: Joi.string().required().min(1).max(100),
+  value: Joi.array().items(Joi.number().min(0).max(1)).required(), // Ensure non-negative numbers
+  order: Joi.number().integer().required().min(1).max(102), // Ensure order is an integer
+  rateType: Joi.string().required().min(1).max(100),
+  startingAge: Joi.number().integer().required().min(0).max(102),
 });
 
 export const mortalityRateValidationSchema = Joi.object({
