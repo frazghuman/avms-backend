@@ -203,18 +203,22 @@ export class ProjectService {
       
       const benefitStructure = benifitsStructure.benefitStructure;
 
-      const beginEndDeath = { begin: [], end: [], death: [] };
+      const benifitStructureFactors = { begin: [], end: [], death: [], retirement: [], withdrawl: [], illHealth: [], termination: [] };
 
       for(const bs of benefitStructure) {
-        beginEndDeath.begin.push(bs.fromServiceYears);
-        beginEndDeath.end.push(bs.toServiceYears);
-        beginEndDeath.death.push(bs.death);
+        benifitStructureFactors.begin.push(bs.fromServiceYears);
+        benifitStructureFactors.end.push(bs.toServiceYears);
+        benifitStructureFactors.death.push(bs.death);
+        benifitStructureFactors.retirement.push(bs.retirement);
+        benifitStructureFactors.withdrawl.push(bs.withdrawl);
+        benifitStructureFactors.illHealth.push(bs.illHealth);
+        benifitStructureFactors.termination.push(bs.termination);
       }
 
-      aldParam['beginEndDeath'] = beginEndDeath;
+      aldParam['benifitStructureFactors'] = benifitStructureFactors;
 
 
-      const ALD_Calculations = this.gratuityCalculationsService.ALD(
+      const ALD_Calculations = this.gratuityCalculationsService.AL(
         aldParam['age'],
         aldParam['ps'],
         aldParam['pay'],
@@ -222,13 +226,69 @@ export class ProjectService {
         aldParam['salaryIncreaseAssumptions'],
         aldParam['output'],
         aldParam['decrementTable'],
+        aldParam['benefitType'],
         aldParam['serviceCap'],
         aldParam['serviceType'],
         aldParam['monthsToSalaryInc'],
         aldParam['retAge'],
-        aldParam['beginEndDeath'],
+        aldParam['benifitStructureFactors'],
+        'death'
       );
-      results.push({...employeeData, ...ALD_Calculations})
+
+      const ALW_Calculations = this.gratuityCalculationsService.AL(
+        aldParam['age'],
+        aldParam['ps'],
+        aldParam['pay'],
+        aldParam['discountRate'],
+        aldParam['salaryIncreaseAssumptions'],
+        aldParam['output'],
+        aldParam['decrementTable'],
+        aldParam['benefitType'],
+        aldParam['serviceCap'],
+        aldParam['serviceType'],
+        aldParam['monthsToSalaryInc'],
+        aldParam['retAge'],
+        aldParam['benifitStructureFactors'],
+        'withdrawl'
+      );
+
+      const ALI_Calculations = this.gratuityCalculationsService.AL(
+        aldParam['age'],
+        aldParam['ps'],
+        aldParam['pay'],
+        aldParam['discountRate'],
+        aldParam['salaryIncreaseAssumptions'],
+        aldParam['output'],
+        aldParam['decrementTable'],
+        aldParam['benefitType'],
+        aldParam['serviceCap'],
+        aldParam['serviceType'],
+        aldParam['monthsToSalaryInc'],
+        aldParam['retAge'],
+        aldParam['benifitStructureFactors'],
+        'illHealth'
+      );
+
+      const ALR_Calculations = this.gratuityCalculationsService.ALR(
+        aldParam['age'],
+        aldParam['ps'],
+        aldParam['pay'],
+        aldParam['discountRate'],
+        aldParam['salaryIncreaseAssumptions'],
+        aldParam['output'],
+        aldParam['benefitType'],
+        aldParam['serviceCap'],
+        aldParam['serviceType'],
+        aldParam['retAge'],
+        aldParam['benifitStructureFactors'],
+      )
+
+      results.push({...employeeData, AL: {
+        death: ALD_Calculations,
+        withdrawl: ALW_Calculations,
+        illHealth: ALI_Calculations,
+        retirement: ALR_Calculations
+      }})
       aldParams.push(aldParam);
     }
 

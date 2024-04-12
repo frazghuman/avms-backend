@@ -28,7 +28,7 @@ export class ProjectController {
     return this.projectService.calculateDecrementTable(projectId);
   }
 
-  @Get('calculate-ald/:projectId')
+  @Get('calculate-gratuity-valuation/:projectId')
   async getCalculateALD(@Param('projectId') projectId: string) {
     return this.projectService.calculateALD(projectId);
   }
