@@ -276,6 +276,7 @@ export class ProjectService {
         aldParam['discountRate'],
         aldParam['salaryIncreaseAssumptions'],
         aldParam['output'],
+        aldParam['decrementTable'],
         aldParam['benefitType'],
         aldParam['serviceCap'],
         aldParam['serviceType'],

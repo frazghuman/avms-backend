@@ -90,8 +90,10 @@ export class GratuityCalculationsService {
                 iterationResult['v'] = v;
     
                 const pvfbta = Math.min(ts1, serviceCap) * pay * sif * hs * rgf;
+                let expectedBenifit = pvfbta * q;
                 const pvfbaa = pvfbta * q * v * hd;
                 iterationResult['pvfbta'] = pvfbta;
+                iterationResult['expectedBenifit'] = expectedBenifit;
                 iterationResult['pvfbaa'] = pvfbaa;
                 
                 if (output === 1) {
@@ -122,6 +124,7 @@ export class GratuityCalculationsService {
         discountRate: number, 
         salaryIncreaseAssumptions: SalaryIncreaseAssumptions, 
         output: number,
+        decrementTable: DecrementTableEntry[],
         benefitType: string,
         serviceCap: number,
         serviceType: number,
@@ -161,10 +164,14 @@ export class GratuityCalculationsService {
     
         let ts = ps + Future_service;
         iterationResult['ts'] = ts;
-        let ts1 = serviceType === 1 ? ts : serviceType === 2 ? Math.round(ts) : Math.floor(ts);
+        let ts1 = Number(serviceType) === 1 ? ts : Number(serviceType) === 2 ? Math.round(ts) : Math.floor(ts);
         iterationResult['ts1'] = ts1;
         // Assume dec function provides a discount factor, simplified here
-        let qr = 1; // Simplification for example
+        // let qr = 1; // Simplification for example
+        const qpa = this.getDecrementTableEntryByAge(retAge, decrementTable);
+        const qage = this.getDecrementTableEntryByAge(age, decrementTable);
+        
+        const qr = (qpa?.DR / qage?.LX) ?? 0;
         iterationResult['qr'] = qr;
         let rgf = 0;
         // Determine rgf based on ts using benifitStructureFactors
@@ -198,8 +205,12 @@ export class GratuityCalculationsService {
     
         let v = Math.pow(1 + discountRate, -Future_service);
         iterationResult['v'] = v;
-        let pvfbta = pay * sif * rgf;
+        let pvfbta = Math.min(ts1, serviceCap) * pay * sif * rgf;
         iterationResult['pvfbta'] = pvfbta;
+
+        let expectedBenifit = pvfbta * qr;
+        iterationResult['expectedBenifit'] = expectedBenifit;
+
         let pvfbaa = pvfbta * qr * v;
         iterationResult['pvfbaa'] = pvfbaa;
 /*  
