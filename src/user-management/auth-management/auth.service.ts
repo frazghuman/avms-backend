@@ -15,7 +15,7 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService
   ) {
-    this.JWT_REFRESH_SECRET = this.configService.get('JWT_REFRESH_SECRET') || '743caa5bb51eaedb5d476fccbb9deae7dffdcb5a5f0cfdaa3c8534f71c2f0fbbc8b77758a73c57650092d087993159d1ecbad9f4f4f9eb38915663cb086b30da';
+    this.JWT_REFRESH_SECRET = this.configService.get('JWT_REFRESH_SECRET');
 
   }
   

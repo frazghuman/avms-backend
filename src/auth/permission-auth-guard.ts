@@ -25,7 +25,7 @@ export class PermissionAuthGuard extends AuthGuard('jwt') implements CanActivate
 
     const [, token] = authHeader.split(' ');
     try {
-      const JWT_SECRET = this.configService.get<string>('JWT_SECRET') || 'c9a0aafd532b567d77e4d75d91694a77435c8bfc0a19f9e80be772c79fecc6204aa98f5052ee685bc335ba04dbeabc589facd36afc35bdf9a10c35f8e60f5079';
+      const JWT_SECRET = this.configService.get<string>('JWT_SECRET');
       const decoded = jwt.verify(token, JWT_SECRET);
       const permissions = decoded['permissions'] ?? [];
       const hasPermission = requiredPermissions.every(permission => permissions.includes(permission));

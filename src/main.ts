@@ -8,7 +8,7 @@ async function bootstrap() {
   dotenv.config();
   const config = {
     mongoUri: process.env.MONGO_URI,
-    port: process.env.PORT || 3000,
+    port: process.env.PORT,
   };
   const app = await NestFactory.create(AppModule);
   app.enableCors({
@@ -18,7 +18,7 @@ async function bootstrap() {
   // Increase the payload size limit (e.g., to 100MB)
   app.use(express.json({ limit: '100mb' }));
 
-  await app.listen(3000);
+  await app.listen(config.port);
 
   
 }

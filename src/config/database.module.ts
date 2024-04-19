@@ -6,12 +6,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
-        const MONGO_URI = configService.get<string>('MONGO_URI') || 'mongodb://127.0.0.1:27017/avms';
+        const MONGO_URI = configService.get<string>('MONGO_URI');
         console.log(MONGO_URI);
         return {
-          uri: MONGO_URI,
-          useNewUrlParser: true,
-          useUnifiedTopology: true
+          uri: MONGO_URI
         };
       },
       inject: [ConfigService],
