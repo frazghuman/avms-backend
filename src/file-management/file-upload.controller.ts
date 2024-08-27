@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -20,10 +22,13 @@ import { ProjectFileService } from './services/project-file.service';
 import { CreateProjectFileDto } from './dto/file-project.dto';
 import { Request, Response } from 'express';
 import { ExcelService } from './services/excel.service';
+import { TaskService } from './services/task.service';
+import { Types } from 'mongoose';
+import { Task } from './schemas/task.schema';
 
 @Controller('file')
 export class FileUploadController {
-  constructor(private projectFileService: ProjectFileService, private excelService: ExcelService) {}
+  constructor(private projectFileService: ProjectFileService, private excelService: ExcelService, private readonly taskService: TaskService) {}
 
   @Post('upload/excel')
   @UseInterceptors(FileInterceptor('file'))
@@ -148,4 +153,40 @@ export class FileUploadController {
     const regex = /[\r\n]+/g;
     return input.replace(regex, ' ').replace(/\s+/g, ' ').trim();
   }
+
+  @Post('processor/task')
+  async fileProcessingTask(
+    @Body('filePath') filePath: string,
+    @Body('fileType') fileType: string,
+    @Body('project') project: Types.ObjectId, // Project ObjectId
+    @Body('stage') stage: string,             // Stage string
+  ): Promise<any> {
+    const taskId = await this.taskService.fileProcessingTask(filePath, fileType, project, stage);
+    return {data: taskId, message: `Task created with ID: ${taskId}`};
+  }
+
+  @Get('status/:taskId')
+  async checkTaskStatus(@Param('taskId') taskId: string): Promise<string> {
+    return this.taskService.checkTaskStatus(taskId);
+  }
+
+  @Get('/task/project/:projectId/stage/:stage')
+  async getTasksByProjectAndStage(
+    @Param('projectId') projectId: string, // Use string and convert to ObjectId in the service
+    @Param('stage') stage: string,
+  ): Promise<Task[]> {
+    const objectId = new Types.ObjectId(projectId); // Convert the string to ObjectId
+    return this.taskService.getTasksByProjectAndStage(objectId, stage);
+  }
+
+  @Delete('/task/project/:projectId/stage/:stage/fileType/:fileType')
+  async deleteTasks(
+    @Param('projectId') projectId: string,
+    @Param('stage') stage: string,
+    @Param('fileType') fileType: string
+  ): Promise<{ deletedCount: number }> {
+    const objectId = new Types.ObjectId(projectId);
+    return this.taskService.deleteTasksByProjectStageAndFileType(objectId, stage, fileType);
+  }
+
 }

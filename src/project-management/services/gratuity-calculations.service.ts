@@ -128,6 +128,7 @@ export class GratuityCalculationsService {
         benefitType: string,
         serviceCap: number,
         serviceType: number,
+        monthsToSalaryInc: number,
         retAge: number,
         benifitStructureFactors: { begin: number[], end: number[], death: number[], retirement: [], withdrawl: [], illHealth: [], termination: [] }
     ): any {
@@ -152,13 +153,22 @@ export class GratuityCalculationsService {
             sif = 1 + si1;
         } else if (Future_service === 2) {
             sif = (1 + si1) * (1 + si2);
-        } else if (Future_service >= 3) {
+        } else if (Future_service === 3) {
+            sif = (1 + si1) * (1 + si2) * (1 + si3);
+        } else if (Future_service === 4) {
+            sif = (1 + si1) * (1 + si2) * (1 + si3) * (1 + si4);}
+        else if (Future_service === 5) {
+            sif = (1 + si1) * (1 + si2) * (1 + si3) * (1 + si4) * (1 + si5);
+        } else if (Future_service > 5) {
             let multipliers = [si1, si2, si3, si4, si5, SI];
             sif = multipliers.slice(0, Future_service).reduce((acc, curr) => acc * (1 + curr), 1);
             if (Future_service > 5) {
-                sif *= Math.pow(1 + SI, Future_service - 5);
+                sif *= Math.pow(1 + SI, Future_service - 6);
             }
         }
+
+        const { hs } = this.calculateSIFandHS(monthsToSalaryInc, Future_service, salaryIncreaseAssumptions);
+        // hs not using in case of retirement
 
         iterationResult['sif'] = sif;
     
@@ -272,7 +282,7 @@ export class GratuityCalculationsService {
                     sif = (1 + si1) * (1 + si2) * (1 + si3) * (1 + si4) * (1 + si5) * Math.pow((1 + SI), (t - 4));
                     hs = 1;
             }
-        } else if (monthsToSalaryInc === 6) {
+        } else if (monthsToSalaryInc >= 6) {
             switch (t) {
                 case 0:
                     sif = 1;
@@ -302,7 +312,7 @@ export class GratuityCalculationsService {
                     sif = (1 + si1) * (1 + si2) * (1 + si3) * (1 + si4) * (1 + si5) * Math.pow((1 + SI), (t - 5));
                     hs = Math.pow((1 + SI), 0.5);
             }
-        } else { // monthsToSalaryInc > 6
+        }/* else { // monthsToSalaryInc > 6
             switch (t) {
                 case 0:
                     sif = 1;
@@ -332,7 +342,7 @@ export class GratuityCalculationsService {
                     sif = (1 + si1) * (1 + si2) * (1 + si3) * (1 + si4) * (1 + si5) * Math.pow((1 + SI), (t - 5));
                     hs = 1;
             }
-        }
+        }*/
     
         return { sif, hs };
     }
