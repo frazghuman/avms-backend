@@ -11,9 +11,10 @@ export class TaskService {
     private readonly excelService: ExcelService
   ) {}
 
-  async fileProcessingTask(
+  async createTask(
     filePath: string,
     fileType: string,
+    taskType: string,
     project: Types.ObjectId, // Project ObjectId
     stage: string,           // Stage string
   ): Promise<string> {
@@ -23,20 +24,63 @@ export class TaskService {
       status: 'NOT_STARTED',
       filePath,
       fileType,
-      taskType: "FILE_PROCESSING",
+      taskType,
       project,               // Save the project ObjectId
       stage,                 // Save the stage string
     });
     try {
       await newTask.save();
-      this.runTask(taskId, fileType, project);
     } catch (error) {
       console.log('CREATE_TASK_ERROR: ', error);
     }
     return taskId;
   }
 
-  private async runTask(taskId: string, fileType: string, project: Types.ObjectId): Promise<void> {
+  async updateTask(taskId: string, updateData: Record<string, any>): Promise<void> {
+    try {
+      // Find the task by the custom "id" field and update it with the provided data
+      await this.taskModel.findOneAndUpdate({ id: taskId }, updateData, { new: true });
+    } catch (error) {
+      console.log('UPDATE_TASK_ERROR: ', error);
+    }
+  }
+
+  async updateTaskStatus(taskId: string, status: string): Promise<void> {
+    try {
+      // Use the generic updateTask function to update the status field
+      await this.updateTask(taskId, { status });
+    } catch (error) {
+      console.log('UPDATE_TASK_STATUS_ERROR: ', error);
+    }
+  }  
+
+  async taskProcessing(
+    filePath: string,
+    fileType: string,
+    taskType: string,
+    project: Types.ObjectId, // Project ObjectId
+    stage: string,           // Stage string
+  ): Promise<string> {
+    const taskId = Math.random().toString(36).substring(7);
+    const newTask = new this.taskModel({
+      id: taskId,
+      status: 'NOT_STARTED',
+      filePath,
+      fileType,
+      taskType,
+      project,               // Save the project ObjectId
+      stage,                 // Save the stage string
+    });
+    try {
+      await newTask.save();
+      this.runTask(taskId, fileType, project, stage);
+    } catch (error) {
+      console.log('CREATE_TASK_ERROR: ', error);
+    }
+    return taskId;
+  }
+
+  private async runTask(taskId: string, fileType: string, project: Types.ObjectId, projectStage: string): Promise<void> {
     const task = await this.taskModel.findOne({ id: taskId });
     if (task) {
       task.status = 'IN_PROGRESS';
@@ -44,7 +88,7 @@ export class TaskService {
       await task.save();
 
       try {
-        await this.excelService.processExcelFile(task.filePath, fileType, project);
+        await this.excelService.processExcelFile(task.filePath, fileType, project, projectStage);
         task.status = 'COMPLETED';
       } catch (error) {
         task.descriptionType = 'ERROR';
@@ -64,12 +108,19 @@ export class TaskService {
   }
 
   // New method to get tasks by project and stage, returning the last record for each fileType
-  async getTasksByProjectAndStage(projectId: Types.ObjectId, stage: string): Promise<Task[]> {
+  async getTasksByProject(projectId: Types.ObjectId): Promise<Task[]> {
     return this.taskModel.aggregate([
-      { $match: { project: projectId, stage, fileType: { $exists: true } } }, // Match records by project, stage, and ensure fileType exists
-      {
-        $sort: { createdAt: -1 } // Sort by creation date, descending (newest first)
-      },
+      { $match: { project: projectId } }, // Match records by project, stages list, and ensure fileType exists
+    ]).exec();
+  }
+
+  // New method to get tasks by project and stage, returning the last record for each fileType
+  async getTasksByProjectAndStage(projectId: Types.ObjectId, stages: string): Promise<Task[]> {
+    const stageList = stages.split(',').map(stage => stage.trim()); // Split stages by comma and trim any whitespace
+
+    return this.taskModel.aggregate([
+      { $match: { project: projectId, stage: { $in: stageList }, fileType: { $exists: true } } }, // Match records by project, stages list, and ensure fileType exists
+      { $sort: { createdAt: -1 } }, // Sort by creation date, descending (newest first)
       {
         $group: {
           _id: "$fileType", // Group by fileType
@@ -81,6 +132,13 @@ export class TaskService {
       }
     ]).exec();
   }
+
+  async getTasksByProjectAndTaskType(projectId: string, taskType: string): Promise<Task[]> {
+    return await this.taskModel.find({ project: projectId, taskType: taskType }).exec();
+  }
+
+
+  
 
   // Method to delete all records by projectId, stage, and fileType
   async deleteTasksByProjectStageAndFileType(

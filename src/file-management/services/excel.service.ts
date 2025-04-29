@@ -15,7 +15,7 @@ export class ExcelService {
     @InjectModel('ActiveEmployeeData') private readonly activeEmployeeModel: Model<ActiveEmployeeData>,
   ) {}
 
-  async processExcelFile(filePath: string, fileType: string, project: Types.ObjectId): Promise<void> {
+  async processExcelFile(filePath: string, fileType: string, project: Types.ObjectId, projectStage: string): Promise<void> {
     const fileName = path.basename(filePath);
     const fullPath = path.resolve('uploads', fileName);
     const workbook = xlsx.readFile(fullPath);
@@ -26,7 +26,7 @@ export class ExcelService {
 
     switch (fileType) {
       case 'PENSIONER_EMPLOYEE_DATA':
-        await this.pensionerEmployeeModel.deleteMany({ project: objectId }).exec();
+        await this.pensionerEmployeeModel.deleteMany({ project: objectId, projectStage: projectStage }).exec();
         for (const data of jsonData) {
           const cleanedData: any = data;
           // Convert Excel serial dates to JavaScript Dates
@@ -38,12 +38,12 @@ export class ExcelService {
             cleanedData.project = new Types.ObjectId(cleanedData.project);
           }
 
-          const newRecord = new this.pensionerEmployeeModel({...cleanedData, project});
+          const newRecord = new this.pensionerEmployeeModel({...cleanedData, project, projectStage});
           await newRecord.save();
         }
         break;
       case 'ACTIVE_EMPLOYEE_DATA':
-        await this.activeEmployeeModel.deleteMany({ project: objectId }).exec();
+        await this.activeEmployeeModel.deleteMany({ project: objectId, projectStage: projectStage }).exec();
         for (const data of jsonData) {
           const cleanedData: any = data;
           // Convert Excel serial dates to JavaScript Dates
@@ -55,7 +55,7 @@ export class ExcelService {
             cleanedData.project = new Types.ObjectId(cleanedData.project);
           }
 
-          const newRecord = new this.activeEmployeeModel({...cleanedData, project});
+          const newRecord = new this.activeEmployeeModel({...cleanedData, project, projectStage});
           await newRecord.save();
         }
         break;

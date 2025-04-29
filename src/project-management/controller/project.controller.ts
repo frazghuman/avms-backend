@@ -55,6 +55,14 @@ export class ProjectController {
     return this.projectService.remove(id);
   }
 
+  @Post(':id/run/valuation/pension')
+  // @UsePipes(new JoiValidationPipe(projectValidationSchema))
+  async runPensionValuation(@Param('id') id: string, @Body() data: any) {
+    return await this.projectService.runPensionValuation({projectId: id, ...data});
+  }
+
+
+
   
 
 }

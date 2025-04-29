@@ -133,5 +133,9 @@ export class ProjectDto {
   @IsOptional()
   @IsObject()
   benifitsStructure: any;
+
+  @IsOptional()
+  @IsObject()
+  valuations: any;
   
 }

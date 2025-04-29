@@ -2,7 +2,7 @@ import { Schema, Document, Types } from 'mongoose';
 
 export interface Task extends Document {
   id: string;
-  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'STOPPED' | 'FAILED';
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'STOPPED' | 'FAILED' | 'CANCELLED';
   filePath: string;
   fileType: string;
   taskType: string;
@@ -17,7 +17,7 @@ export interface Task extends Document {
 
 export const TaskSchema = new Schema({
   id: { type: String, required: true, unique: true },
-  status: { type: String, enum: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'STOPPED', 'FAILED'], default: 'NOT_STARTED' },
+  status: { type: String, enum: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'STOPPED', 'FAILED', 'CANCELLED'], default: 'NOT_STARTED' },
   filePath: { type: String, required: false },
   fileType: { type: String, required: false },
   taskType: { type: String, required: true },

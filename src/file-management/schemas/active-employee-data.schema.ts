@@ -12,6 +12,7 @@ export interface ActiveEmployeeData extends Document {
   PS: string;
   ORDERLY_ALLOWANCE: number;
   project?: Types.ObjectId; // Reference to Project
+  projectStage?: string;
 }
 
 export const ActiveEmployeeDataSchema = new Schema({
@@ -26,4 +27,5 @@ export const ActiveEmployeeDataSchema = new Schema({
   PS: { type: String, required: true },
   ORDERLY_ALLOWANCE: { type: Number, required: false },
   project: { type: Types.ObjectId, ref: 'Project' }, // Reference to the Project schema
+  projectStage: { type: String, required: false },
 });

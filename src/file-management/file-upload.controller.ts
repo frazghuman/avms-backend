@@ -155,13 +155,14 @@ export class FileUploadController {
   }
 
   @Post('processor/task')
-  async fileProcessingTask(
+  async fileProcessingaTask(
     @Body('filePath') filePath: string,
     @Body('fileType') fileType: string,
     @Body('project') project: Types.ObjectId, // Project ObjectId
     @Body('stage') stage: string,             // Stage string
   ): Promise<any> {
-    const taskId = await this.taskService.fileProcessingTask(filePath, fileType, project, stage);
+    const taskType: string = 'FILE_PROCESSING';
+    const taskId = await this.taskService.taskProcessing(filePath, fileType, taskType, project, stage);
     return {data: taskId, message: `Task created with ID: ${taskId}`};
   }
 
@@ -177,6 +178,15 @@ export class FileUploadController {
   ): Promise<Task[]> {
     const objectId = new Types.ObjectId(projectId); // Convert the string to ObjectId
     return this.taskService.getTasksByProjectAndStage(objectId, stage);
+  }
+
+  @Get('/task/project/:projectId/taskType/:taskType')
+  async getTasksByProjectAndTaskType(
+    @Param('projectId') projectId: string, // Use string and convert to ObjectId in the service
+    @Param('taskType') taskType: string,
+  ): Promise<Task[]> {
+    const objectId = new Types.ObjectId(projectId); // Convert the string to ObjectId
+    return this.taskService.getTasksByProjectAndStage(objectId, taskType);
   }
 
   @Delete('/task/project/:projectId/stage/:stage/fileType/:fileType')

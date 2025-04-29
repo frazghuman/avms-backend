@@ -15,6 +15,7 @@ export interface PensionerEmployeeData extends Document {
   YEARS_RESTORATION: number;
   CURRENT_VALUE_OF_RESTORED_AMOUNT: number;
   project?: Types.ObjectId; // Reference to Project
+  projectStage?: string;
 }
 
 export const PensionerEmployeeDataSchema = new Schema({
@@ -32,4 +33,5 @@ export const PensionerEmployeeDataSchema = new Schema({
   YEARS_RESTORATION: { type: Number, required: true },
   CURRENT_VALUE_OF_RESTORED_AMOUNT: { type: Number, required: true },
   project: { type: Types.ObjectId, ref: 'Project' }, // Reference to the Project schema
+  projectStage: { type: String, required: false },
 });

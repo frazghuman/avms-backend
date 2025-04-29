@@ -36,7 +36,7 @@ export class GratuityCalculationsService {
                 const qpa = this.getDecrementTableEntryByAge(pa, decrementTable);
                 const qage = this.getDecrementTableEntryByAge(age, decrementTable);
                 const qpaIndex = scenario === 'death' ? 'DD' : scenario === 'retirement' ? 'DR' : scenario === 'withdrawl' ? 'DW' : scenario === 'illHealth' ? 'DI' : 'DD'
-                const q = (qpa?.[qpaIndex] / qage?.LX) ?? 0;
+                const q = qpa?.[qpaIndex] ? (qpa?.[qpaIndex] / qage?.LX) : 0;
                 iterationResult[qpaIndex] = qpa?.[qpaIndex];
                 iterationResult['LX'] = qage?.LX;
                 iterationResult['q'] = q;
@@ -181,7 +181,7 @@ export class GratuityCalculationsService {
         const qpa = this.getDecrementTableEntryByAge(retAge, decrementTable);
         const qage = this.getDecrementTableEntryByAge(age, decrementTable);
         
-        const qr = (qpa?.DR / qage?.LX) ?? 0;
+        const qr = qpa?.DR ? (qpa?.DR / qage?.LX) : 0;
         iterationResult['qr'] = qr;
         let rgf = 0;
         // Determine rgf based on ts using benifitStructureFactors

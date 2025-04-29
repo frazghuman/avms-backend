@@ -9,6 +9,7 @@ import { ExcelService } from '../../file-management/services/excel.service';
 import { EmployeeRecord, SalaryIncreaseAssumptions } from '../interfaces';
 import { GratuityCalculationsService } from './gratuity-calculations.service';
 import { omitProperties } from '../../common/functions/omit-properties';
+import { TaskService } from '../../file-management/services/task.service';
 
 @Injectable()
 export class ProjectService {
@@ -17,6 +18,7 @@ export class ProjectService {
     //@InjectModel(DecrementRate.name) private readonly decrementRateModel: Model<DecrementRateDocument>,
     private readonly decrementRateService: DecrementRateService,
     private excelService: ExcelService,
+    private taskService: TaskService,
     private gratuityCalculationsService: GratuityCalculationsService
   ) {}
 
@@ -75,18 +77,8 @@ export class ProjectService {
     return deletedProject;
   }
 
-  async calculateDecrementTable(projectId: string, mortalityAgeSetBackChange: number = 0, withdrawalChangePer: number = 0) {
-    const project = await this.projectModel.findById(projectId).exec();
+  async calculateDecrementTable(demographicAssumptions: any, mortalityAgeSetBackChange: number = 0, withdrawalChangePer: number = 0) {
     
-    if (!project) {
-      throw new Error('Project not found');
-    }
-
-    if (!project.assumptions) {
-      throw new Error('Project Assumptions not found');
-    }
-    
-    const demographicAssumptions = project.assumptions.thisYear.demographicAssumptions;
 
     const ratesIds = [
       demographicAssumptions.mortalityRate,
@@ -173,12 +165,26 @@ export class ProjectService {
     if (employeesData.length === 0) {
       throw new Error('Employees data not found');
     }
+
+    if (!project) {
+      throw new Error('Project not found');
+    }
+
+    if (!project.assumptions) {
+      throw new Error('Project Assumptions not found');
+    }
     
-    const decrementTable = await this.calculateDecrementTable(projectId);
-    const decrementTableIncreasedMortalitySetback = await this.calculateDecrementTable(projectId, 1);
-    const decrementTableDecreasedMortalitySetback = await this.calculateDecrementTable(projectId, -1);
-    const decrementTableIncreasedWithdrawal = await this.calculateDecrementTable(projectId, 0, 5);
-    const decrementTableDecreasedWithdrawal = await this.calculateDecrementTable(projectId, 0, -5);
+    const demographicAssumptions = project?.assumptions?.thisYear?.demographicAssumptions;
+
+    if (!demographicAssumptions) {
+      throw new Error('Demographic Assumptions not found');
+    }
+    
+    const decrementTable = await this.calculateDecrementTable(demographicAssumptions);
+    const decrementTableIncreasedMortalitySetback = await this.calculateDecrementTable(demographicAssumptions, 1);
+    const decrementTableDecreasedMortalitySetback = await this.calculateDecrementTable(demographicAssumptions, -1);
+    const decrementTableIncreasedWithdrawal = await this.calculateDecrementTable(demographicAssumptions, 0, 5);
+    const decrementTableDecreasedWithdrawal = await this.calculateDecrementTable(demographicAssumptions, 0, -5);
 
     const alParams = [];
     const results = [];
@@ -643,5 +649,140 @@ export class ProjectService {
     }
 
     return ecbp;
+  }
+
+  async runPensionValuation(data: any) {
+    const { projectId, stage} = data;
+    const taskType = 'PENSION_VALUATION';
+    const taskId = await this.taskService.createTask(null, null, taskType, projectId, stage);
+
+    if (taskId) {
+      const task: any = {}
+      task.status = 'IN_PROGRESS';
+      task.updatedAt = new Date();
+
+      await this.taskService.updateTask(taskId, task);
+      
+      try {
+
+        const valuationStage = stage.replace('Valuation_', '');
+
+        const projectDetail = await this.findOne(projectId);
+
+
+        // Set data for the given valuation stage
+        const stageValuationParams = projectDetail.valuations[valuationStage];
+
+        if (!stageValuationParams) {
+          throw new Error(`Invalid valuation stage name: ${valuationStage}`);
+        }
+
+        // Assign data based on valuation stage
+        switch (valuationStage) {
+          case 'REPLICATION_RUN':
+            // Add specific conditions here if needed
+            break;
+
+          case 'BASELINE_RUN':
+            if (projectDetail?.compiledDataFiles) {
+              stageValuationParams['Data'] = projectDetail.compiledDataFiles;
+            }
+            break;
+
+          case 'SALARY_INCREASE_RATE_CHANGE':
+        if (projectDetail?.valuations['BASELINE_RUN']?.Data && projectDetail.valuations['BASELINE_RUN']?.['Benefits Structure']) {
+        stageValuationParams['Data'] = projectDetail.valuations['BASELINE_RUN'].Data;
+        stageValuationParams['Benefits Structure'] = projectDetail.valuations['BASELINE_RUN']['Benefits Structure'];
+        }
+            break;
+
+          case 'INDEXATION_RATES_CHANGE':
+        if (projectDetail?.valuations['BASELINE_RUN']?.Data && projectDetail.valuations['BASELINE_RUN']?.['Benefits Structure']) {
+        stageValuationParams['Data'] = projectDetail.valuations['BASELINE_RUN'].Data;
+        stageValuationParams['Benefits Structure'] = projectDetail.valuations['BASELINE_RUN']['Benefits Structure'];
+        }
+            break;
+
+          case 'DISCOUNT_RATES_CHANGE':
+        if (projectDetail?.valuations['BASELINE_RUN']?.Data && projectDetail.valuations['BASELINE_RUN']?.['Benefits Structure']) {
+        stageValuationParams['Data'] = projectDetail.valuations['BASELINE_RUN'].Data;
+        stageValuationParams['Benefits Structure'] = projectDetail.valuations['BASELINE_RUN']['Benefits Structure'];
+        }
+            break;
+
+          case 'END_OF_YEAR_VALUATION':
+            if (projectDetail?.compiledDataFiles && projectDetail.valuations['BASELINE_RUN']?.Data) {
+              stageValuationParams['Data'] = projectDetail.valuations['BASELINE_RUN'].Data;
+            }
+            break;
+
+          default:
+            throw new Error(`Invalid task type stage name: ${valuationStage}`);
+        }
+
+        const demographicAssumptions = stageValuationParams?.['Assumptions']?.['demographicAssumptions'];
+        if (demographicAssumptions) {
+          stageValuationParams['DECREMENT_TABLE'] = await this.calculateDecrementTable(demographicAssumptions);
+        } else {
+          throw 'Assumptions does not exist!';
+        }
+
+        projectDetail.valuations[valuationStage] = stageValuationParams;
+
+        // Remove data for all subsequent stages
+        const stages = [
+          'REPLICATION_RUN',
+          'BASELINE_RUN',
+          'SALARY_INCREASE_RATE_CHANGE',
+          'INDEXATION_RATES_CHANGE',
+          'DISCOUNT_RATES_CHANGE',
+          'END_OF_YEAR_VALUATION'
+        ];
+
+        const currentStageIndex = stages.indexOf(valuationStage);
+        if (currentStageIndex === -1) {
+          throw new Error(`Invalid valuation stage name: ${valuationStage}`);
+        }
+
+        const tasksByProjectAndTaskType = await this.taskService.getTasksByProjectAndTaskType(projectId, taskType);
+
+        // Clear data for all stages after the current stage
+        for (let i = currentStageIndex + 1; i < stages.length; i++) {
+          if (projectDetail.valuations[stages[i]]?.Data) {
+            delete projectDetail.valuations[stages[i]]['Data'];
+          }
+          if (projectDetail.valuations[stages[i]]?.['Benefits Structure']) {
+            delete projectDetail.valuations[stages[i]]['Benefits Structure'];
+          }
+          if (projectDetail.valuations[stages[i]]?.['Assumptions']) {
+            delete projectDetail.valuations[stages[i]]['Assumptions'];
+          }
+          if (projectDetail.valuations[stages[i]]?.['DECREMENT_TABLE']) {
+            delete projectDetail.valuations[stages[i]]['DECREMENT_TABLE'];
+          }
+
+          const completedTasks: any[] = tasksByProjectAndTaskType.filter((t: any) => t.stage === `Valuation_${stages[i]}` && t.status === 'COMPLETED');
+          completedTasks.forEach(async (completedTask) => {
+            await this.taskService.updateTask(completedTask.id, {status: 'CANCELLED'});
+          })
+        }
+
+        // Update projectId detail with the modified valuations
+        await this.update(projectId, projectDetail);
+
+
+        task.status = 'COMPLETED';
+      } catch (error) {
+        task.descriptionType = 'ERROR';
+        task.description = error.message;
+        task.stacktrace = error.stack;
+        task.status = 'FAILED';
+      }
+
+      task.updatedAt = new Date();
+      await this.taskService.updateTask(taskId, task);
+    }
+
+    return {data: taskId, message: `Task created with ID: ${taskId}`};
   }
 }
