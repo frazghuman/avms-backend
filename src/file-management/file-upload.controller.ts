@@ -33,97 +33,206 @@ export class FileUploadController {
   @Post('upload/excel')
   @UseInterceptors(FileInterceptor('file'))
   async uploadExcelFile(@UploadedFile() file, @Req() req: Request, @Res() res: Response) {
-    // Send response back
-    res.status(HttpStatus.OK).json({
-      data: {
-        filename: file.originalname,
-        fileUrl: `/files/${file.filename}`,
-      },
-      message: 'File uploaded successfully'
-    });
+    try {
+      // Validate that file was uploaded
+      if (!file) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'No file uploaded',
+          message: 'Please select a file to upload'
+        });
+      }
+
+      // Instead of relying solely on MIME type (which can be unreliable), 
+      // also check file extension
+      const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
+      const allowedExtensions = ['xls', 'xlsx', 'xlsm', 'xlsb', 'xltx', 'xltm'];
+      
+      const allowedMimeTypes = [
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel.sheet.macroEnabled.12',
+        'application/octet-stream' // Sometimes Excel files are detected as this
+      ];
+
+      // Check both MIME type and file extension
+      const isValidMimeType = allowedMimeTypes.includes(file.mimetype);
+      const isValidExtension = allowedExtensions.includes(fileExtension);
+
+      if (!isValidMimeType && !isValidExtension) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'Invalid file type',
+          message: `Only Excel files (.xls, .xlsx, .xlsm) are allowed. Received: ${file.mimetype} with extension: ${fileExtension}`
+        });
+      }
+
+      // Additional validation: If MIME type is octet-stream, ensure extension is valid
+      if (file.mimetype === 'application/octet-stream' && !isValidExtension) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'Invalid file type',
+          message: `File appears to be binary but doesn't have a valid Excel extension. Expected: ${allowedExtensions.join(', ')}, got: ${fileExtension}`
+        });
+      }
+
+      // Validate file size (limit to 50MB)
+      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+      if (file.size > maxSize) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'File too large',
+          message: 'File size must be less than 50MB'
+        });
+      }
+
+      // Send response back
+      res.status(HttpStatus.OK).json({
+        data: {
+          filename: file.originalname,
+          fileUrl: `/files/${file.filename}`,
+        },
+        message: 'File uploaded successfully'
+      });
+    } catch (error) {
+      console.error('Error uploading Excel file:', error);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        error: 'Internal server error',
+        message: 'An error occurred while uploading the file'
+      });
+    }
   }
 
   @Post('upload/docs')
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocFile(@UploadedFile() file, @Req() req: Request, @Res() res: Response) {
-    // Send response back
-    res.status(HttpStatus.OK).json({
-      data: {
-        filename: file.originalname,
-        fileUrl: `/files/${file.filename}`,
-      },
-      message: 'File uploaded successfully'
-    });
+    try {
+      // Validate that file was uploaded
+      if (!file) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'No file uploaded',
+          message: 'Please select a file to upload'
+        });
+      }
+
+      // Check both MIME type and file extension for document files
+      const fileExtension = file.originalname.split('.').pop()?.toLowerCase();
+      const allowedExtensions = ['pdf', 'doc', 'docx', 'txt', 'rtf'];
+      
+      const allowedMimeTypes = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
+        'application/rtf',
+        'application/octet-stream' // Sometimes documents are detected as this
+      ];
+
+      // Check both MIME type and file extension
+      const isValidMimeType = allowedMimeTypes.includes(file.mimetype);
+      const isValidExtension = allowedExtensions.includes(fileExtension);
+
+      if (!isValidMimeType && !isValidExtension) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'Invalid file type',
+          message: `Only document files (.pdf, .doc, .docx, .txt, .rtf) are allowed. Received: ${file.mimetype} with extension: ${fileExtension}`
+        });
+      }
+
+      // Additional validation: If MIME type is octet-stream, ensure extension is valid
+      if (file.mimetype === 'application/octet-stream' && !isValidExtension) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'Invalid file type',
+          message: `File appears to be binary but doesn't have a valid document extension. Expected: ${allowedExtensions.join(', ')}, got: ${fileExtension}`
+        });
+      }
+
+      // Validate file size (limit to 50MB)
+      const maxSize = 50 * 1024 * 1024; // 50MB in bytes
+      if (file.size > maxSize) {
+        return res.status(HttpStatus.BAD_REQUEST).json({
+          error: 'File too large',
+          message: 'File size must be less than 50MB'
+        });
+      }
+
+      // Send response back
+      res.status(HttpStatus.OK).json({
+        data: {
+          filename: file.originalname,
+          fileUrl: `/files/${file.filename}`,
+        },
+        message: 'File uploaded successfully'
+      });
+    } catch (error) {
+      console.error('Error uploading document file:', error);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        error: 'Internal server error',
+        message: 'An error occurred while uploading the file'
+      });
+    }
   }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async upload(@UploadedFile() file, @Body() body: any) {
-    const requestBody = JSON.parse(body.data);
-
-    let createProjectFileDto: CreateProjectFileDto = new CreateProjectFileDto();
-    createProjectFileDto['filename'] = file.filename;
-    createProjectFileDto['originalname'] = file.originalname;
-    createProjectFileDto['filePath'] = file.path;
-    createProjectFileDto['mimetype'] = file.mimetype;
-    createProjectFileDto['size'] = file.size;
-    createProjectFileDto['uploadDate'] = new Date();
-    
-    if(requestBody?.project) {
-      createProjectFileDto['project'] = requestBody?.project;
-    }
-
-    createProjectFileDto['md5'] = this.projectFileService.generateMD5(file.path);
-
-
-    
-
-    const filePath = file.path;
-    const fileContent = fs.readFileSync(filePath);
-
-    const workbook = xlsx.read(fileContent);
-    const sheetName = workbook.SheetNames[0];
-    createProjectFileDto['sheetName'] = sheetName;
-    const worksheet = workbook.Sheets[sheetName];
-    /* const data = xlsx.utils.sheet_to_json(worksheet, {
-      header: requestBody?.headerIndex || 0,
-      defval: '',
-      blankrows: false,
-    });
-
-    const mapping = requestBody?.mapping || {
-      'First Name': 'firstName',
-      'Last Name': 'lastName',
-      'Email': 'email',
-      'Phone Number': 'phoneNumber',
-    };
-    const mappedData = data.map(obj => {
-      return Object.fromEntries(
-        Object.entries(obj).map(([key, value]) => [mapping[key], value])
-      );
-    });*/
-    // Save the mapped data to the database
-
-    // Extract the header row as an array of strings
-    const headerRow = [];
-    const headerRowNo = requestBody?.headerRowIndex || 1;
-    for (const cellAddress in worksheet) {
-      const cell = worksheet[cellAddress];
-      if (this.getNumberFromAlphaNumeric(cellAddress) === headerRowNo) {
-        const columnName = this.getAlphabeticPartFromAlphaNumeric(cellAddress);
-        const title = this.cleanString(cell.w);
-        headerRow.push({ columnIndex: columnName, title: title});
+    try {
+      // Validate that file was uploaded
+      if (!file) {
+        return {
+          error: 'No file uploaded',
+          message: 'Please select a file to upload'
+        };
       }
+
+      const requestBody = JSON.parse(body.data);
+
+      let createProjectFileDto: CreateProjectFileDto = new CreateProjectFileDto();
+      createProjectFileDto['filename'] = file.filename;
+      createProjectFileDto['originalname'] = file.originalname;
+      createProjectFileDto['filePath'] = file.path;
+      createProjectFileDto['mimetype'] = file.mimetype;
+      createProjectFileDto['size'] = file.size;
+      createProjectFileDto['uploadDate'] = new Date();
+      
+      if(requestBody?.project) {
+        createProjectFileDto['project'] = requestBody?.project;
+      }
+
+      createProjectFileDto['md5'] = this.projectFileService.generateMD5(file.path);
+
+      const filePath = file.path;
+      const fileContent = fs.readFileSync(filePath);
+
+      const workbook = xlsx.read(fileContent);
+      const sheetName = workbook.SheetNames[0];
+      createProjectFileDto['sheetName'] = sheetName;
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Extract the header row as an array of strings
+      const headerRow = [];
+      const headerRowNo = requestBody?.headerRowIndex || 1;
+      for (const cellAddress in worksheet) {
+        const cell = worksheet[cellAddress];
+        if (this.getNumberFromAlphaNumeric(cellAddress) === headerRowNo) {
+          const columnName = this.getAlphabeticPartFromAlphaNumeric(cellAddress);
+          const title = this.cleanString(cell.w);
+          headerRow.push({ columnIndex: columnName, title: title});
+        }
+      }
+
+      createProjectFileDto['headerRowNo'] = Number(headerRowNo);
+      createProjectFileDto['headerRow'] = headerRow;
+      await this.projectFileService.create(createProjectFileDto);
+
+      return {
+        headerRow: headerRow,
+        message: 'File uploaded and parsed successfully',
+      };
+    } catch (error) {
+      console.error('Error processing uploaded file:', error);
+      return {
+        error: 'Internal server error',
+        message: 'An error occurred while processing the uploaded file',
+        details: error.message
+      };
     }
-
-    createProjectFileDto['headerRowNo'] = Number(headerRowNo);
-    createProjectFileDto['headerRow'] = headerRow;
-    await this.projectFileService.create(createProjectFileDto);
-
-    return {
-      headerRow: headerRow,
-      message: 'File uploaded and parsed successfully',
-    };
   }
 
   @Get('excel/:fileUrl')

@@ -9,11 +9,15 @@ import { UserModule } from './user-management/user.module';
 import { ProjectModule } from './project-management/project.module';
 import { CorsMiddleware } from './middlewares/cors.middleware';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Make environment variables available throughout the application
+    }),
     DatabaseModule.register(),
     TodoModule,
     FileManagementModule,
