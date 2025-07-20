@@ -10,6 +10,7 @@ import { EmployeeRecord, SalaryIncreaseAssumptions } from '../interfaces';
 import { GratuityCalculationsService } from './gratuity-calculations.service';
 import { omitProperties } from '../../common/functions/omit-properties';
 import { TaskService } from '../../file-management/services/task.service';
+import axios from 'axios';
 
 @Injectable()
 export class ProjectService {
@@ -32,8 +33,44 @@ export class ProjectService {
   }
 
   async getProjectsByCompanyId(companyId: string) {
-    // Assuming you have a 'company' field in your Project schema
-    return this.projectModel.find({ company: companyId }).exec();
+    try {
+      // Validate companyId
+      if (!companyId) {
+        throw new Error('Company ID is required');
+      }
+
+      // Check if companyId is a valid ObjectId
+      const isValidObjectId = ObjectId.isValid(companyId);
+      if (!isValidObjectId) {
+        throw new Error('Invalid company ID format');
+      }
+
+      // Fetch only first-level properties using inclusion projection only
+      const projects = await this.projectModel.find(
+        { company: companyId },
+        {
+          // Include only the basic first-level string/primitive properties
+          _id: 1,
+          name: 1,
+          description: 1,
+          status: 1,
+          stage: 1,
+          valuationType: 1,
+          valuationDate: 1,
+          company: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          __v: 1
+          // Note: All other fields (assumptions, benifitsStructure, valuations, etc.) 
+          // are automatically excluded when using inclusion projection
+        }
+      ).populate('company', 'name').exec();
+
+      return projects;
+    } catch (error) {
+      console.error('Error in getProjectsByCompanyId:', error);
+      throw new Error(`Failed to fetch projects: ${error.message}`);
+    }
   }
 
   async findOne(id: string): Promise<Project> {
@@ -41,11 +78,61 @@ export class ProjectService {
     if (!isValidObjectId) {
       throw new Error('Invalid id');
     }
-    const project = await this.projectModel.findById(id).populate('company').exec();
-    if (!project) {
+    
+    // Use aggregation pipeline to dynamically exclude batch_info from all valuation stages
+    const projects = await this.projectModel.aggregate([
+      { $match: { _id: new ObjectId(id) } },
+      {
+        $addFields: {
+          valuations: {
+            $cond: {
+              if: { $ne: ["$valuations", null] },
+              then: {
+                $arrayToObject: {
+                  $map: {
+                    input: { $objectToArray: "$valuations" },
+                    as: "stage",
+                    in: {
+                      k: "$$stage.k",
+                      v: {
+                        $arrayToObject: {
+                          $filter: {
+                            input: { $objectToArray: "$$stage.v" },
+                            as: "field",
+                            cond: { $ne: ["$$field.k", "batch_info"] }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              else: "$valuations"
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: "companies",
+          localField: "company",
+          foreignField: "_id",
+          as: "company"
+        }
+      },
+      {
+        $unwind: {
+          path: "$company",
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ]).exec();
+    
+    if (!projects || projects.length === 0) {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
-    return project;
+    
+    return projects[0] as Project;
   }
 
   async update(id: string, updateProjectDto: ProjectDto): Promise<Project> {
@@ -75,6 +162,655 @@ export class ProjectService {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
     return deletedProject;
+  }
+
+  async getEmployeeRecordsByCode(
+    projectId: string,
+    stageName: string,
+    batchType: string,
+    employeeCode: string
+  ): Promise<any> {
+    const isValidObjectId = ObjectId.isValid(projectId);
+    if (!isValidObjectId) {
+      throw new Error('Invalid project ID');
+    }
+
+    const employeeCodeNum = parseInt(employeeCode);
+
+    // Based on the image structure: valuations.REPLICATION_RUN.batch_info.batch_results[].active_employee_results.active_employees_results[]
+    const pipeline = [
+      { $match: { _id: new ObjectId(projectId) } },
+      {
+        $project: {
+          projectName: "$name",
+          batchResults: `$valuations.${stageName}.batch_info.batch_results`
+        }
+      },
+      {
+        $unwind: {
+          path: "$batchResults",
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      {
+        $match: {
+          "batchResults.batch_type": batchType
+        }
+      }
+    ];
+
+    // First, let's see what we have at this point
+    const intermediateResults = await this.projectModel.aggregate(pipeline).exec();
+    console.log('Intermediate results after batch type match:', JSON.stringify(intermediateResults, null, 2));
+
+    // Additional debugging for pensioner employees
+    if (batchType === 'pensioner_employees' && intermediateResults.length > 0) {
+      const batchResult = intermediateResults[0].batchResults;
+      console.log('Pensioner batch debugging:');
+      console.log('- batch_type:', batchResult.batch_type);
+      console.log('- result structure keys:', Object.keys(batchResult.result || {}));
+      console.log('- pensioner_employee_results exists:', !!batchResult.result?.pensioner_employee_results);
+      console.log('- pensioner_employees_results exists:', !!batchResult.result?.pensioner_employee_results?.pensioner_employees_results);
+      
+      if (batchResult.result?.pensioner_employee_results?.pensioner_employees_results) {
+        const pensionerResults = batchResult.result.pensioner_employee_results.pensioner_employees_results;
+        console.log('- pensioner_employees_results count:', pensionerResults.length);
+        console.log('- available employee codes:', pensionerResults.map(emp => emp.employee_code));
+      }
+    }
+
+    // Continue with the full pipeline
+    const fullPipeline = [
+      ...pipeline,
+      {
+        $addFields: {
+          employeeResults: {
+            $cond: {
+              if: { $eq: ["$batchResults.batch_type", "active_employees"] },
+              then: {
+                $cond: {
+                  if: { 
+                    $and: [
+                      { $ne: ["$batchResults.result.active_employee_results", null] },
+                      { $ne: ["$batchResults.result.active_employee_results.active_employees_results", null] }
+                    ]
+                  },
+                  then: "$batchResults.result.active_employee_results.active_employees_results",
+                  else: []
+                }
+              },
+              else: {
+                $cond: {
+                  if: { 
+                    $and: [
+                      { $ne: ["$batchResults.result.pensioner_employee_results", null] },
+                      { $ne: ["$batchResults.result.pensioner_employee_results.pensioner_employees_results", null] }
+                    ]
+                  },
+                  then: "$batchResults.result.pensioner_employee_results.pensioner_employees_results",
+                  else: []
+                }
+              }
+            }
+          },
+          employeeType: {
+            $cond: {
+              if: { $eq: ["$batchResults.batch_type", "active_employees"] },
+              then: "active",
+              else: "pensioner"
+            }
+          }
+        }
+      },
+      {
+        $unwind: {
+          path: "$employeeResults",
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      {
+        $match: {
+          $or: [
+            { "employeeResults.employee_code": employeeCodeNum },
+            { "employeeResults.employee_code": employeeCode }  // Also try string version
+          ]
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          projectName: 1,
+          stageName: { $literal: stageName },
+          batchType: "$batchResults.batch_type",
+          employee_code: employeeCodeNum,
+          employeeType: 1,
+          batchInfo: {
+            status: "$batchResults.result.summary.status",
+            started_at: "$batchResults.started_at",
+            total_employees: "$batchResults.total_employees",
+            batch_size: "$batchResults.batch_size",
+            batch_number: "$batchResults.batch_number",
+            completed_at: "$batchResults.completed_at"
+          },
+          valuation_data: "$employeeResults.valuation_data",
+          total_valuation_records: { 
+            $cond: {
+              if: { $isArray: "$employeeResults.valuation_data" },
+              then: { $size: "$employeeResults.valuation_data" },
+              else: 0
+            }
+          }
+        }
+      }
+    ];
+
+    console.log('Running full pipeline for:', { projectId, stageName, batchType, employeeCodeNum });
+    const results = await this.projectModel.aggregate(fullPipeline).exec();
+    console.log('Pipeline results count:', results.length);
+    
+    if (results.length > 0) {
+      console.log('Found employee record:', {
+        employee_code: results[0].employee_code,
+        batch_type: results[0].batchType,
+        total_records: results[0].total_valuation_records
+      });
+    }
+
+    if (!results || results.length === 0) {
+      throw new NotFoundException(
+        `No records found for employee ${employeeCode} in project ${projectId}, stage ${stageName}, batch type ${batchType}`
+      );
+    }
+
+    return results[0];
+  }
+
+  async getEmployeeRecordsAllBatchTypes(
+    projectId: string,
+    stageName: string,
+    employeeCode: string
+  ): Promise<any> {
+    const isValidObjectId = ObjectId.isValid(projectId);
+    if (!isValidObjectId) {
+      throw new Error('Invalid project ID');
+    }
+
+    const employeeCodeNum = parseInt(employeeCode);
+
+    const pipeline = [
+      { $match: { _id: new ObjectId(projectId) } },
+      {
+        $project: {
+          projectName: "$name",
+          batchResults: `$valuations.${stageName}.batch_info.batch_results`
+        }
+      },
+      {
+        $unwind: {
+          path: "$batchResults",
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      {
+        $addFields: {
+          employeeResults: {
+            $cond: {
+              if: { $ne: ["$batchResults.active_employee_results", null] },
+              then: {
+                results: "$batchResults.active_employee_results.active_employees_results",
+                type: "active"
+              },
+              else: {
+                $cond: {
+                  if: { $ne: ["$batchResults.pensioner_employee_results", null] },
+                  then: {
+                    results: "$batchResults.pensioner_employee_results.pensioner_employees_results",
+                    type: "pensioner"
+                  },
+                  else: {
+                    results: [],
+                    type: "unknown"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $unwind: {
+          path: "$employeeResults.results",
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      {
+        $match: {
+          "employeeResults.results.employee_code": employeeCodeNum
+        }
+      },
+      {
+        $group: {
+          _id: {
+            projectName: "$projectName",
+            employeeCode: employeeCodeNum,
+            batchType: "$batchResults.batch_type"
+          },
+          batchInfo: {
+            $first: {
+              status: "$batchResults.status",
+              started_at: "$batchResults.started_at",
+              total_employees: "$batchResults.total_employees",
+              batch_size: "$batchResults.batch_size",
+              batch_number: "$batchResults.batch_number",
+              completed_at: "$batchResults.completed_at"
+            }
+          },
+          employeeType: { $first: "$employeeResults.type" },
+          valuation_data: {
+            $push: "$employeeResults.results.valuation_data"
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            projectName: "$_id.projectName",
+            employeeCode: "$_id.employeeCode"
+          },
+          batches: {
+            $push: {
+              batchType: "$_id.batchType",
+              employeeType: "$employeeType",
+              batchInfo: "$batchInfo",
+              total_records: {
+                $sum: {
+                  $map: {
+                    input: "$valuation_data",
+                    as: "data",
+                    in: { $size: "$$data" }
+                  }
+                }
+              },
+              valuation_data: {
+                $reduce: {
+                  input: "$valuation_data",
+                  initialValue: [],
+                  in: { $concatArrays: ["$$value", "$$this"] }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          projectName: "$_id.projectName",
+          stageName: { $literal: stageName },
+          employee_code: "$_id.employeeCode",
+          total_batches: { $size: "$batches" },
+          batches: 1
+        }
+      }
+    ];
+
+    const results = await this.projectModel.aggregate(pipeline).exec();
+
+    if (!results || results.length === 0) {
+      throw new NotFoundException(
+        `No records found for employee ${employeeCode} in project ${projectId}, stage ${stageName}`
+      );
+    }
+
+    return results[0];
+  }
+
+  async findEmployeeInBatches(
+    projectId: string,
+    stageName: string,
+    employeeCode: string
+  ): Promise<any> {
+    const isValidObjectId = ObjectId.isValid(projectId);
+    if (!isValidObjectId) {
+      throw new Error('Invalid project ID');
+    }
+
+    const employeeCodeNum = parseInt(employeeCode);
+
+    const pipeline = [
+      { $match: { _id: new ObjectId(projectId) } },
+      {
+        $project: {
+          projectName: "$name",
+          batchResults: `$valuations.${stageName}.batch_info.batch_results`
+        }
+      },
+      {
+        $unwind: {
+          path: "$batchResults",
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      {
+        $addFields: {
+          hasEmployee: {
+            $or: [
+              {
+                $in: [
+                  employeeCodeNum,
+                  {
+                    $ifNull: [
+                      {
+                        $map: {
+                          input: "$batchResults.active_employee_results.active_employees_results",
+                          as: "emp",
+                          in: "$$emp.employee_code"
+                        }
+                      },
+                      []
+                    ]
+                  }
+                ]
+              },
+              {
+                $in: [
+                  employeeCodeNum,
+                  {
+                    $ifNull: [
+                      {
+                        $map: {
+                          input: "$batchResults.pensioner_employee_results.pensioner_employees_results",
+                          as: "emp",
+                          in: "$$emp.employee_code"
+                        }
+                      },
+                      []
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          employeeType: {
+            $cond: {
+              if: {
+                $in: [
+                  employeeCodeNum,
+                  {
+                    $ifNull: [
+                      {
+                        $map: {
+                          input: "$batchResults.active_employee_results.active_employees_results",
+                          as: "emp",
+                          in: "$$emp.employee_code"
+                        }
+                      },
+                      []
+                    ]
+                  }
+                ]
+              },
+              then: "active",
+              else: {
+                $cond: {
+                  if: {
+                    $in: [
+                      employeeCodeNum,
+                      {
+                        $ifNull: [
+                          {
+                            $map: {
+                              input: "$batchResults.pensioner_employee_results.pensioner_employees_results",
+                              as: "emp",
+                              in: "$$emp.employee_code"
+                            }
+                          },
+                          []
+                        ]
+                      }
+                    ]
+                  },
+                  then: "pensioner",
+                  else: null
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        $match: {
+          hasEmployee: true
+        }
+      },
+      {
+        $project: {
+          projectName: 1,
+          batchType: "$batchResults.batch_type",
+          employeeType: 1,
+          batchStatus: "$batchResults.status",
+          batchNumber: "$batchResults.batch_number"
+        }
+      },
+      {
+        $group: {
+          _id: {
+            projectName: "$projectName",
+            employeeCode: employeeCodeNum
+          },
+          foundInBatches: {
+            $push: {
+              batchType: "$batchType",
+              employeeType: "$employeeType",
+              batchStatus: "$batchStatus",
+              batchNumber: "$batchNumber"
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          projectName: "$_id.projectName",
+          stageName: { $literal: stageName },
+          employee_code: "$_id.employeeCode",
+          total_batches_found: { $size: "$foundInBatches" },
+          foundInBatches: 1
+        }
+      }
+    ];
+
+    const results = await this.projectModel.aggregate(pipeline).exec();
+
+    if (!results || results.length === 0) {
+      return {
+        projectName: null,
+        stageName: stageName,
+        employee_code: employeeCodeNum,
+        total_batches_found: 0,
+        foundInBatches: [],
+        message: `Employee ${employeeCode} not found in any batches for stage ${stageName}`
+      };
+    }
+
+    return results[0];
+  }
+
+  // Debug method to see actual structure
+  async debugBatchStructure(projectId: string, stageName: string): Promise<any> {
+    const isValidObjectId = ObjectId.isValid(projectId);
+    if (!isValidObjectId) {
+      throw new Error('Invalid project ID');
+    }
+
+    const pipeline = [
+      { $match: { _id: new ObjectId(projectId) } },
+      {
+        $project: {
+          projectName: "$name",
+          batchInfo: `$valuations.${stageName}.batch_info`,
+          availableStages: { $objectToArray: "$valuations" }
+        }
+      }
+    ];
+
+    const results = await this.projectModel.aggregate(pipeline).exec();
+    return results[0] || { message: "No data found" };
+  }
+
+  // Debug method specifically for finding a specific employee
+  async debugFindEmployee(projectId: string, stageName: string, employeeCode: string): Promise<any> {
+    const isValidObjectId = ObjectId.isValid(projectId);
+    if (!isValidObjectId) {
+      throw new Error('Invalid project ID');
+    }
+
+    const employeeCodeNum = parseInt(employeeCode);
+
+    const pipeline = [
+      { $match: { _id: new ObjectId(projectId) } },
+      {
+        $project: {
+          projectName: "$name",
+          batchResults: `$valuations.${stageName}.batch_info.batch_results`
+        }
+      },
+      {
+        $unwind: {
+          path: "$batchResults",
+          preserveNullAndEmptyArrays: false
+        }
+      }
+    ];
+
+    const allBatches = await this.projectModel.aggregate(pipeline).exec();
+    
+    const result = {
+      projectName: allBatches[0]?.projectName || 'Unknown',
+      searchingFor: employeeCodeNum,
+      totalBatches: allBatches.length,
+      batchAnalysis: []
+    };
+
+    for (const batch of allBatches) {
+      const batchInfo = {
+        batch_type: batch.batchResults.batch_type,
+        batch_number: batch.batchResults.batch_number,
+        has_result: !!batch.batchResults.result,
+        result_keys: batch.batchResults.result ? Object.keys(batch.batchResults.result) : [],
+        employee_analysis: {
+          active_employees: {
+            exists: false,
+            count: 0,
+            has_target_employee: false,
+            employee_codes: []
+          },
+          pensioner_employees: {
+            exists: false,
+            count: 0,
+            has_target_employee: false,
+            employee_codes: []
+          }
+        }
+      };
+
+      // Check active employees
+      if (batch.batchResults.result?.active_employee_results?.active_employees_results) {
+        const activeResults = batch.batchResults.result.active_employee_results.active_employees_results;
+        batchInfo.employee_analysis.active_employees.exists = true;
+        batchInfo.employee_analysis.active_employees.count = activeResults.length;
+        batchInfo.employee_analysis.active_employees.employee_codes = activeResults.map(emp => emp.employee_code);
+        batchInfo.employee_analysis.active_employees.has_target_employee = activeResults.some(emp => emp.employee_code === employeeCodeNum);
+      }
+
+      // Check pensioner employees
+      if (batch.batchResults.result?.pensioner_employee_results?.pensioner_employees_results) {
+        const pensionerResults = batch.batchResults.result.pensioner_employee_results.pensioner_employees_results;
+        batchInfo.employee_analysis.pensioner_employees.exists = true;
+        batchInfo.employee_analysis.pensioner_employees.count = pensionerResults.length;
+        batchInfo.employee_analysis.pensioner_employees.employee_codes = pensionerResults.map(emp => emp.employee_code);
+        batchInfo.employee_analysis.pensioner_employees.has_target_employee = pensionerResults.some(emp => emp.employee_code === employeeCodeNum);
+      }
+
+      result.batchAnalysis.push(batchInfo);
+    }
+
+    return result;
+  }
+
+  // Debug method specifically for pensioner employee data
+  async debugPensionerEmployeeData(projectId: string, stageName: string): Promise<any> {
+    const isValidObjectId = ObjectId.isValid(projectId);
+    if (!isValidObjectId) {
+      throw new Error('Invalid project ID');
+    }
+
+    const pipeline = [
+      { $match: { _id: new ObjectId(projectId) } },
+      {
+        $project: {
+          projectName: "$name",
+          batchResults: `$valuations.${stageName}.batch_info.batch_results`
+        }
+      },
+      {
+        $unwind: {
+          path: "$batchResults",
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      {
+        $match: {
+          "batchResults.batch_type": "pensioner_employees"
+        }
+      },
+      {
+        $project: {
+          projectName: 1,
+          batch_type: "$batchResults.batch_type",
+          batch_number: "$batchResults.batch_number",
+          batch_status: "$batchResults.result.summary.status",
+          pensioner_results_structure: {
+            $cond: {
+              if: { $ne: ["$batchResults.result.pensioner_employee_results", null] },
+              then: {
+                has_pensioner_employee_results: true,
+                has_pensioner_employees_results: { $ne: ["$batchResults.result.pensioner_employee_results.pensioner_employees_results", null] },
+                pensioner_count: { 
+                  $cond: {
+                    if: { $isArray: "$batchResults.result.pensioner_employee_results.pensioner_employees_results" },
+                    then: { $size: "$batchResults.result.pensioner_employee_results.pensioner_employees_results" },
+                    else: 0
+                  }
+                },
+                sample_employee_codes: {
+                  $slice: [
+                    {
+                      $map: {
+                        input: { $ifNull: ["$batchResults.result.pensioner_employee_results.pensioner_employees_results", []] },
+                        as: "emp",
+                        in: "$$emp.employee_code"
+                      }
+                    },
+                    5
+                  ]
+                }
+              },
+              else: {
+                has_pensioner_employee_results: false,
+                available_result_keys: { $objectToArray: "$batchResults.result" }
+              }
+            }
+          }
+        }
+      }
+    ];
+
+    const results = await this.projectModel.aggregate(pipeline).exec();
+    return {
+      total_pensioner_batches: results.length,
+      batches: results
+    };
   }
 
   async calculateDecrementTable(demographicAssumptions: any, mortalityAgeSetBackChange: number = 0, withdrawalChangePer: number = 0) {
@@ -109,7 +845,7 @@ export class ProjectService {
       } 
       const CDV = { // calculatedDecrementValue
         age: index,
-        QD: index === joinedData.retirementAge ? 0 : joinedData.mortalityRate.value[index + joinedData.mortalityAgeSetBack] ?? 0,
+        QD: index === joinedData.retirementAge ? 0 : parseFloat(joinedData.mortalityRate.value[index + joinedData.mortalityAgeSetBack].toFixed(5)) ?? 0,
         QW: index === joinedData.retirementAge ? 0 : withDrawalRate,
         QI: index === joinedData.retirementAge ? 0 : joinedData.illHealthRate.value[index - minJoiningAge] ?? 0,
         QR: index === joinedData.retirementAge ? 1 : 0,
@@ -131,7 +867,7 @@ export class ProjectService {
       CDV.DW = CDV.LX * CDV.QW;
       CDV.DI = CDV.LX * CDV.QI;
       CDV.DR = CDV.LX * CDV.QR;
-      CDV.LL = CDV.LX - (CDV.DD / 2) - (CDV.DW / 2) - (CDV.DI / 2)
+      CDV.LL = CDV.LX - (CDV.DD + CDV.DW + CDV.DI + CDV.DR)/2;//(CDV.DD / 2) - (CDV.DW / 2) - (CDV.DI / 2)
       
       data.push(CDV);
     }
@@ -723,8 +1459,71 @@ export class ProjectService {
         const demographicAssumptions = stageValuationParams?.['Assumptions']?.['demographicAssumptions'];
         if (demographicAssumptions) {
           stageValuationParams['DECREMENT_TABLE'] = await this.calculateDecrementTable(demographicAssumptions);
+          
+          // Process demographic assumption rates (mortalityRate, withdrawalRate, illHealthRate)
+          const demographicRateIds = [
+            demographicAssumptions.mortalityRate,
+            demographicAssumptions.withdrawalRate,
+            demographicAssumptions.illHealthRate
+          ].filter(id => id); // Filter out any undefined/null values
+          
+          if (demographicRateIds.length > 0) {
+            const demographicRates = await this.decrementRateService.decrementRateByIds(demographicRateIds);
+            
+            // Transform and assign each demographic rate individually
+            demographicRates.forEach(rate => {
+              const ageValueList = rate.value.map((value, index) => ({
+                age: rate.startingAge + index,
+                value: value
+              }));
+              
+              const processedRate = {
+                id: (rate as any)._id?.toString() || rate.decrementRateName,
+                name: rate.decrementRateName,
+                rateType: rate.rateType,
+                ageValueList: ageValueList
+              };
+              
+              // Assign based on rate ID
+              const rateId = (rate as any)._id?.toString();
+              if (rateId === demographicAssumptions.mortalityRate) {
+                stageValuationParams['MORTALITY_RATE'] = processedRate;
+              } else if (rateId === demographicAssumptions.withdrawalRate) {
+                stageValuationParams['WITHDRAWAL_RATE'] = processedRate;
+              } else if (rateId === demographicAssumptions.illHealthRate) {
+                stageValuationParams['ILL_HEALTH_RATE'] = processedRate;
+              }
+            });
+          }
         } else {
           throw 'Assumptions does not exist!';
+        }
+
+        // Process commutation factors from Benefits Structure
+        const benefitsStructure = stageValuationParams?.['Benefits Structure'];
+        if (benefitsStructure?.commutationFactor) {
+          const commutationFactorIds = benefitsStructure.commutationFactor.map(cf => cf.value);
+          
+          if (commutationFactorIds.length > 0) {
+            const commutationFactorRates = await this.decrementRateService.decrementRateByIds(commutationFactorIds);
+            
+            // Transform commutation factors into age and value object lists
+            const commutationFactors = commutationFactorRates.map(rate => {
+              const ageValueList = rate.value.map((value, index) => ({
+                age: rate.startingAge + index,
+                ret_with_death: value
+              }));
+              
+              return {
+                id: (rate as any)._id?.toString() || rate.decrementRateName,
+                name: rate.decrementRateName,
+                rateType: rate.rateType,
+                ageValueList: ageValueList
+              };
+            });
+            
+            stageValuationParams['COMMUTATION_FACTORS'] = commutationFactors;
+          }
         }
 
         projectDetail.valuations[valuationStage] = stageValuationParams;
@@ -760,6 +1559,18 @@ export class ProjectService {
           if (projectDetail.valuations[stages[i]]?.['DECREMENT_TABLE']) {
             delete projectDetail.valuations[stages[i]]['DECREMENT_TABLE'];
           }
+          if (projectDetail.valuations[stages[i]]?.['COMMUTATION_FACTORS']) {
+            delete projectDetail.valuations[stages[i]]['COMMUTATION_FACTORS'];
+          }
+          if (projectDetail.valuations[stages[i]]?.['MORTALITY_RATE']) {
+            delete projectDetail.valuations[stages[i]]['MORTALITY_RATE'];
+          }
+          if (projectDetail.valuations[stages[i]]?.['WITHDRAWAL_RATE']) {
+            delete projectDetail.valuations[stages[i]]['WITHDRAWAL_RATE'];
+          }
+          if (projectDetail.valuations[stages[i]]?.['ILL_HEALTH_RATE']) {
+            delete projectDetail.valuations[stages[i]]['ILL_HEALTH_RATE'];
+          }
 
           const completedTasks: any[] = tasksByProjectAndTaskType.filter((t: any) => t.stage === `Valuation_${stages[i]}` && t.status === 'COMPLETED');
           completedTasks.forEach(async (completedTask) => {
@@ -770,6 +1581,19 @@ export class ProjectService {
         // Update projectId detail with the modified valuations
         await this.update(projectId, projectDetail);
 
+        // Call FastAPI endpoint
+        try {
+          const fastApiUrl = `${process.env.VALUATION_SERVER_URL}/projects/${projectId}/valuations/${valuationStage}/run-batch`;
+          const response = await axios.post(fastApiUrl, {
+            project_id: projectId,
+            valuation_stage: valuationStage
+          });
+          
+          console.log('FastAPI response:', response.data);
+        } catch (fastApiError) {
+          console.error('FastAPI call failed:', fastApiError.message);
+          throw new Error(`FastAPI call failed: ${fastApiError.message}`);
+        }
 
         task.status = 'COMPLETED';
       } catch (error) {
@@ -781,8 +1605,91 @@ export class ProjectService {
 
       task.updatedAt = new Date();
       await this.taskService.updateTask(taskId, task);
+
+
     }
 
     return {data: taskId, message: `Task created with ID: ${taskId}`};
+  }
+
+  async deleteValuations(projectId: string) {
+    try {
+      const projectDetail = await this.findOne(projectId);
+
+      if (!projectDetail) {
+        throw new NotFoundException(`Project with ID ${projectId} not found`);
+      }
+
+      // Check if the project has valuations
+      if (!projectDetail.valuations || Object.keys(projectDetail.valuations).length === 0) {
+        return { message: 'No valuations found to delete' };
+      }
+
+      // Clear all valuation data
+      const stages = [
+        'REPLICATION_RUN',
+        'BASELINE_RUN',
+        'SALARY_INCREASE_RATE_CHANGE',
+        'INDEXATION_RATES_CHANGE',
+        'DISCOUNT_RATES_CHANGE',
+        'END_OF_YEAR_VALUATION'
+      ];
+
+      let deletedStages = [];
+
+      // Clear valuation data for each stage
+      stages.forEach(stage => {
+        if (projectDetail.valuations[stage]) {
+          // Clear all data types for this stage
+          if (projectDetail.valuations[stage]['Data']) {
+            delete projectDetail.valuations[stage]['Data'];
+          }
+          if (projectDetail.valuations[stage]['Benefits Structure']) {
+            delete projectDetail.valuations[stage]['Benefits Structure'];
+          }
+          if (projectDetail.valuations[stage]['Assumptions']) {
+            delete projectDetail.valuations[stage]['Assumptions'];
+          }
+          if (projectDetail.valuations[stage]['DECREMENT_TABLE']) {
+            delete projectDetail.valuations[stage]['DECREMENT_TABLE'];
+          }
+          if (projectDetail.valuations[stage]['COMMUTATION_FACTORS']) {
+            delete projectDetail.valuations[stage]['COMMUTATION_FACTORS'];
+          }
+          if (projectDetail.valuations[stage]['MORTALITY_RATE']) {
+            delete projectDetail.valuations[stage]['MORTALITY_RATE'];
+          }
+          if (projectDetail.valuations[stage]['WITHDRAWAL_RATE']) {
+            delete projectDetail.valuations[stage]['WITHDRAWAL_RATE'];
+          }
+          if (projectDetail.valuations[stage]['ILL_HEALTH_RATE']) {
+            delete projectDetail.valuations[stage]['ILL_HEALTH_RATE'];
+          }
+
+          deletedStages.push(stage);
+        }
+      });
+
+      // Cancel all related valuation tasks
+      const taskType = 'PENSION_VALUATION';
+      const tasksByProjectAndTaskType = await this.taskService.getTasksByProjectAndTaskType(projectId, taskType);
+      
+      const completedTasks: any[] = tasksByProjectAndTaskType.filter((t: any) => t.status === 'COMPLETED');
+      await Promise.all(completedTasks.map(async (completedTask) => {
+        await this.taskService.updateTask(completedTask.id, { status: 'CANCELLED' });
+      }));
+
+      // Update the project with cleared valuations
+      await this.update(projectId, projectDetail);
+
+      return {
+        message: `Successfully deleted valuations for project ${projectId}`,
+        deletedStages: deletedStages,
+        cancelledTasks: completedTasks.length
+      };
+
+    } catch (error) {
+      throw new Error(`Failed to delete valuations: ${error.message}`);
+    }
   }
 }

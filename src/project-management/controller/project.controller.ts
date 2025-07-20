@@ -61,8 +61,115 @@ export class ProjectController {
     return await this.projectService.runPensionValuation({projectId: id, ...data});
   }
 
+  @Get(':projectId/stages/:stageName/batches/:batchType/employees/:employeeCode/records')
+  async getEmployeeRecords(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+    @Param('batchType') batchType: string,
+    @Param('employeeCode') employeeCode: string,
+  ) {
+    return this.projectService.getEmployeeRecordsByCode(
+      projectId,
+      stageName,
+      batchType,
+      employeeCode
+    );
+  }
 
+  @Get(':projectId/stages/:stageName/employees/:employeeCode/records/all-batches')
+  async getEmployeeRecordsAllBatchTypes(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+    @Param('employeeCode') employeeCode: string,
+  ) {
+    return this.projectService.getEmployeeRecordsAllBatchTypes(
+      projectId,
+      stageName,
+      employeeCode
+    );
+  }
 
-  
+  @Get(':projectId/stages/:stageName/employees/:employeeCode/find-in-batches')
+  async findEmployeeInBatches(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+    @Param('employeeCode') employeeCode: string,
+  ) {
+    return this.projectService.findEmployeeInBatches(
+      projectId,
+      stageName,
+      employeeCode
+    );
+  }
 
+  @Get(':projectId/stages/:stageName/batches/:batchType/employees/:employeeCode/valuation-data')
+  async getEmployeeValuationData(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+    @Param('batchType') batchType: string,
+    @Param('employeeCode') employeeCode: string,
+  ) {
+    const result = await this.projectService.getEmployeeRecordsByCode(
+      projectId,
+      stageName,
+      batchType,
+      employeeCode
+    );
+    return result.valuation_data || [];
+  }
+
+  @Get(':projectId/stages/:stageName/batches/:batchType/employees/:employeeCode/summary')
+  async getEmployeeBatchSummary(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+    @Param('batchType') batchType: string,
+    @Param('employeeCode') employeeCode: string,
+  ) {
+    const result = await this.projectService.getEmployeeRecordsByCode(
+      projectId,
+      stageName,
+      batchType,
+      employeeCode
+    );
+    
+    return {
+      projectName: result.projectName,
+      stageName: result.stageName,
+      batchType: result.batchType,
+      employee_code: result.employee_code,
+      employeeType: result.employeeType,
+      total_valuation_records: result.total_valuation_records,
+      batchInfo: result.batchInfo
+    };
+  }
+
+  @Get(':projectId/stages/:stageName/debug-structure')
+  async debugBatchStructure(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+  ) {
+    return this.projectService.debugBatchStructure(projectId, stageName);
+  }
+
+  @Get(':projectId/stages/:stageName/debug-pensioner-data')
+  async debugPensionerEmployeeData(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+  ) {
+    return this.projectService.debugPensionerEmployeeData(projectId, stageName);
+  }
+
+  @Get(':projectId/stages/:stageName/debug-find-employee/:employeeCode')
+  async debugFindEmployee(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string,
+    @Param('employeeCode') employeeCode: string,
+  ) {
+    return this.projectService.debugFindEmployee(projectId, stageName, employeeCode);
+  }
+
+  @Delete(':id/valuations')
+  async deleteValuations(@Param('id') id: string) {
+    return this.projectService.deleteValuations(id);
+  }
 }

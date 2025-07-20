@@ -12,6 +12,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import { SettingsModule } from './settings/settings.module';
+import { EmployeeDataManagementModule } from './employee-data-management/employee-data-management.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { SettingsModule } from './settings/settings.module';
     CompanyModule,
     ProjectModule,
     SettingsModule,
+    EmployeeDataManagementModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/files/',
