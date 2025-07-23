@@ -8,19 +8,25 @@ import { DecrementRateService } from '../../settings/services/decrement-rate.ser
 import { ExcelService } from '../../file-management/services/excel.service';
 import { EmployeeRecord, SalaryIncreaseAssumptions } from '../interfaces';
 import { GratuityCalculationsService } from './gratuity-calculations.service';
+import { ProgressService } from '../../common/websocket/progress.gateway';
+import { v4 as uuidv4 } from 'uuid';
 import { omitProperties } from '../../common/functions/omit-properties';
 import { TaskService } from '../../file-management/services/task.service';
 import axios from 'axios';
 
 @Injectable()
 export class ProjectService {
+  private employeeRecordsCache = new Map<string, { data: any; timestamp: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   constructor(
     @InjectModel(Project.name) private readonly projectModel: Model<ProjectDocument>,
     //@InjectModel(DecrementRate.name) private readonly decrementRateModel: Model<DecrementRateDocument>,
     private readonly decrementRateService: DecrementRateService,
     private excelService: ExcelService,
     private taskService: TaskService,
-    private gratuityCalculationsService: GratuityCalculationsService
+    private gratuityCalculationsService: GratuityCalculationsService,
+    private readonly progressService: ProgressService
   ) {}
 
   async create(createProjectDto: ProjectDto): Promise<Project> {
@@ -170,6 +176,15 @@ export class ProjectService {
     batchType: string,
     employeeCode: string
   ): Promise<any> {
+    // Create cache key
+    const cacheKey = `${projectId}_${stageName}_${batchType}_${employeeCode}`;
+    
+    // Check cache first
+    const cached = this.employeeRecordsCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
+      return cached.data;
+    }
+
     const isValidObjectId = ObjectId.isValid(projectId);
     if (!isValidObjectId) {
       throw new Error('Invalid project ID');
@@ -177,7 +192,7 @@ export class ProjectService {
 
     const employeeCodeNum = parseInt(employeeCode);
 
-    // Based on the image structure: valuations.REPLICATION_RUN.batch_info.batch_results[].active_employee_results.active_employees_results[]
+    // Optimized pipeline to directly find the employee without intermediate queries
     const pipeline = [
       { $match: { _id: new ObjectId(projectId) } },
       {
@@ -196,32 +211,7 @@ export class ProjectService {
         $match: {
           "batchResults.batch_type": batchType
         }
-      }
-    ];
-
-    // First, let's see what we have at this point
-    const intermediateResults = await this.projectModel.aggregate(pipeline).exec();
-    console.log('Intermediate results after batch type match:', JSON.stringify(intermediateResults, null, 2));
-
-    // Additional debugging for pensioner employees
-    if (batchType === 'pensioner_employees' && intermediateResults.length > 0) {
-      const batchResult = intermediateResults[0].batchResults;
-      console.log('Pensioner batch debugging:');
-      console.log('- batch_type:', batchResult.batch_type);
-      console.log('- result structure keys:', Object.keys(batchResult.result || {}));
-      console.log('- pensioner_employee_results exists:', !!batchResult.result?.pensioner_employee_results);
-      console.log('- pensioner_employees_results exists:', !!batchResult.result?.pensioner_employee_results?.pensioner_employees_results);
-      
-      if (batchResult.result?.pensioner_employee_results?.pensioner_employees_results) {
-        const pensionerResults = batchResult.result.pensioner_employee_results.pensioner_employees_results;
-        console.log('- pensioner_employees_results count:', pensionerResults.length);
-        console.log('- available employee codes:', pensionerResults.map(emp => emp.employee_code));
-      }
-    }
-
-    // Continue with the full pipeline
-    const fullPipeline = [
-      ...pipeline,
+      },
       {
         $addFields: {
           employeeResults: {
@@ -304,17 +294,7 @@ export class ProjectService {
       }
     ];
 
-    console.log('Running full pipeline for:', { projectId, stageName, batchType, employeeCodeNum });
-    const results = await this.projectModel.aggregate(fullPipeline).exec();
-    console.log('Pipeline results count:', results.length);
-    
-    if (results.length > 0) {
-      console.log('Found employee record:', {
-        employee_code: results[0].employee_code,
-        batch_type: results[0].batchType,
-        total_records: results[0].total_valuation_records
-      });
-    }
+    const results = await this.projectModel.aggregate(pipeline).exec();
 
     if (!results || results.length === 0) {
       throw new NotFoundException(
@@ -322,7 +302,25 @@ export class ProjectService {
       );
     }
 
-    return results[0];
+    const result = results[0];
+    
+    // Cache the result
+    this.employeeRecordsCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+
+    // Clean up old cache entries (simple cleanup)
+    if (this.employeeRecordsCache.size > 1000) {
+      const now = Date.now();
+      for (const [key, value] of this.employeeRecordsCache.entries()) {
+        if (now - value.timestamp > this.CACHE_TTL) {
+          this.employeeRecordsCache.delete(key);
+        }
+      }
+    }
+
+    return result;
   }
 
   async getEmployeeRecordsAllBatchTypes(
@@ -1390,6 +1388,10 @@ export class ProjectService {
   async runPensionValuation(data: any) {
     const { projectId, stage} = data;
     const taskType = 'PENSION_VALUATION';
+    
+    // Generate unique job ID for progress tracking
+    const jobId = uuidv4();
+    
     const taskId = await this.taskService.createTask(null, null, taskType, projectId, stage);
 
     if (taskId) {
@@ -1399,12 +1401,29 @@ export class ProjectService {
 
       await this.taskService.updateTask(taskId, task);
       
+      // Initialize progress tracking
+      this.progressService.updateProgress(
+        jobId,
+        'initialization',
+        0,
+        100,
+        'Starting pension valuation...',
+        { taskType, status: 'IN_PROGRESS' }
+      );
+      
       try {
-
         const valuationStage = stage.replace('Valuation_', '');
-
         const projectDetail = await this.findOne(projectId);
 
+        // Update progress
+        this.progressService.updateProgress(
+          jobId,
+          'data_preparation',
+          10,
+          100,
+          'Preparing valuation data...',
+          { taskType }
+        );
 
         // Set data for the given valuation stage
         const stageValuationParams = projectDetail.valuations[valuationStage];
@@ -1581,35 +1600,87 @@ export class ProjectService {
         // Update projectId detail with the modified valuations
         await this.update(projectId, projectDetail);
 
+        // Update progress before calling FastAPI
+        this.progressService.updateProgress(
+          jobId,
+          'calculation',
+          50,
+          100,
+          'Starting pension calculation...',
+          { taskType }
+        );
+
         // Call FastAPI endpoint
         try {
           const fastApiUrl = `${process.env.VALUATION_SERVER_URL}/projects/${projectId}/valuations/${valuationStage}/run-batch`;
+          
+          // Update progress
+          this.progressService.updateProgress(
+            jobId,
+            'calculation',
+            70,
+            100,
+            'Sending calculation request to valuation server...',
+            { taskType }
+          );
+          
           const response = await axios.post(fastApiUrl, {
             project_id: projectId,
-            valuation_stage: valuationStage
+            valuation_stage: valuationStage,
+            job_id: jobId // Pass job_id to FastAPI for progress tracking
           });
           
           console.log('FastAPI response:', response.data);
+          
+          // Update progress after calculation
+          this.progressService.updateProgress(
+            jobId,
+            'finalizing',
+            90,
+            100,
+            'Finalizing calculation results...',
+            { taskType }
+          );
+          
         } catch (fastApiError) {
           console.error('FastAPI call failed:', fastApiError.message);
+          
+          // Report error through progress service
+          this.progressService.errorJob(jobId, `FastAPI call failed: ${fastApiError.message}`);
+          
           throw new Error(`FastAPI call failed: ${fastApiError.message}`);
         }
 
         task.status = 'COMPLETED';
+        
+        // Complete the job
+        this.progressService.completeJob(jobId, {
+          taskType,
+          status: 'COMPLETED',
+          message: 'Pension valuation completed successfully'
+        });
+        
       } catch (error) {
         task.descriptionType = 'ERROR';
         task.description = error.message;
         task.stacktrace = error.stack;
         task.status = 'FAILED';
+        
+        // Report error through progress service
+        this.progressService.errorJob(jobId, error.message);
       }
 
       task.updatedAt = new Date();
       await this.taskService.updateTask(taskId, task);
-
-
     }
 
-    return {data: taskId, message: `Task created with ID: ${taskId}`};
+    // Return job_id for frontend to track progress
+    return {
+      data: taskId, 
+      job_id: jobId,
+      message: `Task created with ID: ${taskId}`,
+      progress_endpoint: `/progress/${jobId}`
+    };
   }
 
   async deleteValuations(projectId: string) {

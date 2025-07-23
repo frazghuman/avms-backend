@@ -13,6 +13,7 @@ import { ConfigModule } from '@nestjs/config';
 import { join } from 'path';
 import { SettingsModule } from './settings/settings.module';
 import { EmployeeDataManagementModule } from './employee-data-management/employee-data-management.module';
+import { WebSocketModule } from './common/websocket/websocket.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { EmployeeDataManagementModule } from './employee-data-management/employe
     ProjectModule,
     SettingsModule,
     EmployeeDataManagementModule,
+    WebSocketModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', 'uploads'),
       serveRoot: '/files/',

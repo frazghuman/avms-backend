@@ -271,8 +271,13 @@ export class FileUploadController {
     @Body('stage') stage: string,             // Stage string
   ): Promise<any> {
     const taskType: string = 'FILE_PROCESSING';
-    const taskId = await this.taskService.taskProcessing(filePath, fileType, taskType, project, stage);
-    return {data: taskId, message: `Task created with ID: ${taskId}`};
+    const result = await this.taskService.taskProcessing(filePath, fileType, taskType, project, stage);
+    return {
+      data: result.taskId, 
+      jobId: result.jobId,
+      message: `Task created with ID: ${result.taskId}`,
+      progressEndpoint: `/progress/${result.jobId}`
+    };
   }
 
   @Get('status/:taskId')

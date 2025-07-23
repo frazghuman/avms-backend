@@ -5,6 +5,7 @@ import { ProjectService } from './project.service';
 import { DecrementRateModule } from '../../settings/decrement-rate.module';
 import { GratuityCalculationsService } from './gratuity-calculations.service';
 import { TaskServiceModule } from '../../file-management/services/task-service.module';
+import { ProgressService } from '../../common/websocket/progress.gateway';
 
 @Module({
     imports: [
@@ -13,7 +14,7 @@ import { TaskServiceModule } from '../../file-management/services/task-service.m
       TaskServiceModule
     ],
     controllers: [],
-    providers: [ProjectService, GratuityCalculationsService],
-    exports: [ProjectService, GratuityCalculationsService],
+    providers: [ProjectService, GratuityCalculationsService, ProgressService],
+    exports: [ProjectService, GratuityCalculationsService, ProgressService],
   })
 export class ProjectServiceModule {}

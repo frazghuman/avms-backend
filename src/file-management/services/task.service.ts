@@ -3,12 +3,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ExcelService } from './excel.service';
 import { Task } from '../schemas/task.schema';
+import { ProgressService } from '../../common/websocket/progress.gateway';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class TaskService {
   constructor(
     @InjectModel('Task') private readonly taskModel: Model<Task>,
-    private readonly excelService: ExcelService
+    private readonly excelService: ExcelService,
+    private readonly progressService: ProgressService
   ) {}
 
   async createTask(
@@ -60,8 +63,10 @@ export class TaskService {
     taskType: string,
     project: Types.ObjectId, // Project ObjectId
     stage: string,           // Stage string
-  ): Promise<string> {
+  ): Promise<{ taskId: string; jobId: string }> {
     const taskId = Math.random().toString(36).substring(7);
+    const jobId = uuidv4(); // Generate unique job ID for progress tracking
+    
     const newTask = new this.taskModel({
       id: taskId,
       status: 'NOT_STARTED',
@@ -70,31 +75,95 @@ export class TaskService {
       taskType,
       project,               // Save the project ObjectId
       stage,                 // Save the stage string
+      jobId,                 // Store job ID for progress tracking
     });
+    
     try {
       await newTask.save();
-      this.runTask(taskId, fileType, project, stage);
+      
+      // Initialize progress tracking
+      this.progressService.updateProgress(
+        jobId,
+        'initialization',
+        0,
+        100,
+        'Initializing file processing...',
+        { 
+          taskType: 'FILE_PROCESSING',
+          fileType,
+          status: 'INITIALIZING'
+        }
+      );
+      
+      // Start the background task
+      this.runTask(taskId, fileType, project, stage, jobId);
     } catch (error) {
       console.log('CREATE_TASK_ERROR: ', error);
     }
-    return taskId;
+    
+    return { taskId, jobId };
   }
 
-  private async runTask(taskId: string, fileType: string, project: Types.ObjectId, projectStage: string): Promise<void> {
+  private async runTask(taskId: string, fileType: string, project: Types.ObjectId, projectStage: string, jobId: string): Promise<void> {
     const task = await this.taskModel.findOne({ id: taskId });
     if (task) {
       task.status = 'IN_PROGRESS';
       task.updatedAt = new Date();
       await task.save();
 
+      // Update progress to in-progress
+      this.progressService.updateProgress(
+        jobId,
+        'processing',
+        5,
+        100,
+        'Starting file processing...',
+        { 
+          taskType: 'FILE_PROCESSING',
+          fileType,
+          status: 'IN_PROGRESS'
+        }
+      );
+
       try {
-        await this.excelService.processExcelFile(task.filePath, fileType, project, projectStage);
+        await this.excelService.processExcelFile(task.filePath, fileType, project, projectStage, jobId);
         task.status = 'COMPLETED';
+        
+        // Final success update
+        this.progressService.updateProgress(
+          jobId,
+          'completed',
+          100,
+          100,
+          'File processing completed successfully!',
+          { 
+            taskType: 'FILE_PROCESSING',
+            fileType,
+            status: 'COMPLETED',
+            completed: true
+          }
+        );
       } catch (error) {
         task.descriptionType = 'ERROR';
         task.description = error.message;
         task.stacktrace = error.stack;
         task.status = 'FAILED';
+        
+        // Error update
+        this.progressService.updateProgress(
+          jobId,
+          'error',
+          0,
+          100,
+          `File processing failed: ${error.message}`,
+          { 
+            taskType: 'FILE_PROCESSING',
+            fileType,
+            status: 'FAILED',
+            error: true,
+            completed: true
+          }
+        );
       }
 
       task.updatedAt = new Date();

@@ -2,6 +2,7 @@ import { Schema, Document, Types } from 'mongoose';
 
 export interface Task extends Document {
   id: string;
+  jobId?: string;  // Optional job ID for progress tracking
   status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'STOPPED' | 'FAILED' | 'CANCELLED';
   filePath: string;
   fileType: string;
@@ -17,6 +18,7 @@ export interface Task extends Document {
 
 export const TaskSchema = new Schema({
   id: { type: String, required: true, unique: true },
+  jobId: { type: String, required: false },  // Optional job ID for progress tracking
   status: { type: String, enum: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'STOPPED', 'FAILED', 'CANCELLED'], default: 'NOT_STARTED' },
   filePath: { type: String, required: false },
   fileType: { type: String, required: false },

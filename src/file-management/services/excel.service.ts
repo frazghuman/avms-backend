@@ -7,15 +7,17 @@ import { Model, Types } from 'mongoose';
 import { PensionerEmployeeData } from '../schemas/pensioner-employee-data.schema';
 import { ActiveEmployeeData } from '../schemas/active-employee-data.schema';
 import * as moment from 'moment';
+import { ProgressService } from '../../common/websocket/progress.gateway';
 
 @Injectable()
 export class ExcelService {
   constructor(
     @InjectModel('PensionerEmployeeData') private readonly pensionerEmployeeModel: Model<PensionerEmployeeData>,
     @InjectModel('ActiveEmployeeData') private readonly activeEmployeeModel: Model<ActiveEmployeeData>,
+    private readonly progressService: ProgressService,
   ) {}
 
-  async processExcelFile(filePath: string, fileType: string, project: Types.ObjectId, projectStage: string): Promise<void> {
+  async processExcelFile(filePath: string, fileType: string, project: Types.ObjectId, projectStage: string, jobId?: string): Promise<void> {
     const fileName = path.basename(filePath);
     const fullPath = path.resolve('uploads', fileName);
     const workbook = xlsx.readFile(fullPath);
@@ -23,12 +25,50 @@ export class ExcelService {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = xlsx.utils.sheet_to_json(worksheet);
     const objectId = new Types.ObjectId(project);
+    const totalRecords = jsonData.length;
+
+    // Emit initial progress
+    if (jobId) {
+      this.progressService.updateProgress(
+        jobId,
+        'file_reading',
+        5,
+        100,
+        `Reading ${fileType} file: ${fileName}`,
+        { 
+          taskType: 'FILE_PROCESSING',
+          fileType,
+          totalEmployees: totalRecords,
+          stage: 'reading_file'
+        }
+      );
+    }
 
     switch (fileType) {
       case 'PENSIONER_EMPLOYEE_DATA':
+        // Clear existing data
+        if (jobId) {
+          this.progressService.updateProgress(
+            jobId,
+            'clearing_data',
+            10,
+            100,
+            'Clearing existing pensioner employee data...',
+            { 
+              taskType: 'FILE_PROCESSING',
+              fileType,
+              stage: 'clearing_data'
+            }
+          );
+        }
+        
         await this.pensionerEmployeeModel.deleteMany({ project: objectId, projectStage: projectStage }).exec();
-        for (const data of jsonData) {
+        
+        // Process records with progress tracking
+        for (let i = 0; i < jsonData.length; i++) {
+          const data = jsonData[i];
           const cleanedData: any = data;
+          
           // Convert Excel serial dates to JavaScript Dates
           cleanedData.DOB = this.parseDateOrSerial(cleanedData.DOB);
           cleanedData.DOR = this.parseDateOrSerial(cleanedData.DOR);
@@ -40,12 +80,52 @@ export class ExcelService {
 
           const newRecord = new this.pensionerEmployeeModel({...cleanedData, project, projectStage});
           await newRecord.save();
+
+          // Emit progress every 10 records or on the last record
+          if (jobId && (i % 10 === 0 || i === jsonData.length - 1)) {
+            const progress = Math.floor(15 + ((i + 1) / totalRecords) * 80); // 15-95%
+            this.progressService.updateProgress(
+              jobId,
+              'processing_records',
+              progress,
+              100,
+              `Processing pensioner employees: ${i + 1}/${totalRecords}`,
+              { 
+                taskType: 'FILE_PROCESSING',
+                fileType,
+                processedEmployees: i + 1,
+                totalEmployees: totalRecords,
+                stage: 'saving_to_database'
+              }
+            );
+          }
         }
         break;
+        
       case 'ACTIVE_EMPLOYEE_DATA':
+        // Clear existing data
+        if (jobId) {
+          this.progressService.updateProgress(
+            jobId,
+            'clearing_data',
+            10,
+            100,
+            'Clearing existing active employee data...',
+            { 
+              taskType: 'FILE_PROCESSING',
+              fileType,
+              stage: 'clearing_data'
+            }
+          );
+        }
+        
         await this.activeEmployeeModel.deleteMany({ project: objectId, projectStage: projectStage }).exec();
-        for (const data of jsonData) {
+        
+        // Process records with progress tracking
+        for (let i = 0; i < jsonData.length; i++) {
+          const data = jsonData[i];
           const cleanedData: any = data;
+          
           // Convert Excel serial dates to JavaScript Dates
           cleanedData.DOA = this.parseDateOrSerial(cleanedData.DOA);
           cleanedData.DOB = this.parseDateOrSerial(cleanedData.DOB);
@@ -57,10 +137,48 @@ export class ExcelService {
 
           const newRecord = new this.activeEmployeeModel({...cleanedData, project, projectStage});
           await newRecord.save();
+
+          // Emit progress every 10 records or on the last record
+          if (jobId && (i % 10 === 0 || i === jsonData.length - 1)) {
+            const progress = Math.floor(15 + ((i + 1) / totalRecords) * 80); // 15-95%
+            this.progressService.updateProgress(
+              jobId,
+              'processing_records',
+              progress,
+              100,
+              `Processing active employees: ${i + 1}/${totalRecords}`,
+              { 
+                taskType: 'FILE_PROCESSING',
+                fileType,
+                processedEmployees: i + 1,
+                totalEmployees: totalRecords,
+                stage: 'saving_to_database'
+              }
+            );
+          }
         }
         break;
+        
       default:
         throw new Error('Unsupported file type');
+    }
+
+    // Emit completion progress
+    if (jobId) {
+      this.progressService.updateProgress(
+        jobId,
+        'completed',
+        100,
+        100,
+        `Successfully processed ${totalRecords} ${fileType.toLowerCase()} records`,
+        { 
+          taskType: 'FILE_PROCESSING',
+          fileType,
+          totalEmployees: totalRecords,
+          processedEmployees: totalRecords,
+          stage: 'completed'
+        }
+      );
     }
   }
 
