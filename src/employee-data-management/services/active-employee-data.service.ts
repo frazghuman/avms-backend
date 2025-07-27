@@ -61,6 +61,28 @@ export class ActiveEmployeeDataService {
     return this.activeEmployeeDataModel.find(filter).exec();
   }
 
+  async findByValuatedEmployeesProjectAndStage(projectId: string, stageName: string): Promise<{ ECODE: string; NAME: string }[]> {
+    const filter: any = { project: projectId };
+
+    // If stageName is not Valuation_REPLICATION_RUN or Valuation_BASELINE_RUN, use Valuation_BASELINE_RUN as default
+    if (stageName !== 'Valuation_REPLICATION_RUN' && stageName !== 'Valuation_BASELINE_RUN') {
+      stageName = 'Valuation_BASELINE_RUN';
+    }
+
+    // Handle both exact matches and prefix matches for Valuation_ stages
+    if (stageName.startsWith('Valuation_')) {
+      filter.projectStage = { $regex: `^${stageName}`, $options: 'i' };
+    } else {
+      filter.$or = [
+        { projectStage: stageName },
+        { projectStage: { $regex: `^Valuation_.*${stageName}`, $options: 'i' } }
+      ];
+    }
+
+    // Return only ECODE and NAME fields
+    return this.activeEmployeeDataModel.find(filter).select('ECODE NAME -_id').exec();
+  }
+
   async update(id: string, updateDto: UpdateActiveEmployeeDataDto): Promise<ActiveEmployeeData> {
     const updatedEmployee = await this.activeEmployeeDataModel
       .findByIdAndUpdate(id, updateDto, { new: true })

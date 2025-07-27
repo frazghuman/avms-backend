@@ -4,7 +4,7 @@ export interface ActiveEmployeeData extends Document {
   SNO: number;
   ECODE: string;
   NAME: string;
-  PAY_SCALE: string;
+  PAY_SCALE: Number;
   DOA: Date;
   DOB: Date;
   PAY: number;
@@ -19,7 +19,7 @@ export const ActiveEmployeeDataSchema = new Schema({
   SNO: { type: Number, required: true },
   ECODE: { type: String, required: true },
   NAME: { type: String, required: true },
-  PAY_SCALE: { type: String, required: true },
+  PAY_SCALE: { type: Number, required: true },
   DOA: { type: Date, required: true },
   DOB: { type: Date, required: true },
   PAY: { type: Number, required: true },

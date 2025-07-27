@@ -185,6 +185,54 @@ export class ProjectService {
       return cached.data;
     }
 
+    try {
+      // Try new FastAPI individual employee storage first
+      const fastApiUrl = `${process.env.VALUATION_SERVER_URL}/projects/${projectId}/valuations/${stageName}/employee-results`;
+      
+      const response = await axios.get(fastApiUrl, {
+        params: {
+          employee_code: employeeCode,
+          employee_type: batchType === 'pensioner_employees' ? 'pensioner' : 'active',
+          limit: 1
+        }
+      });
+
+      if (response.data?.employee_results?.length > 0) {
+        const employeeResult = response.data.employee_results[0];
+        
+        const result = {
+          projectName: response.data.project_id, // We'll get the actual name from the project if needed
+          stageName: stageName,
+          employee_code: parseInt(employeeCode),
+          batchType: batchType,
+          employeeType: employeeResult.employee_type,
+          batchInfo: {
+            status: 'completed',
+            started_at: employeeResult.batch_info?.started_at,
+            total_employees: employeeResult.batch_info?.total_employees_in_batch || 1,
+            batch_size: employeeResult.batch_info?.total_employees_in_batch || 1,
+            batch_number: employeeResult.batch_number,
+            completed_at: employeeResult.processed_at
+          },
+          valuation_data: employeeResult.valuation_data || [],
+          total_valuation_records: Array.isArray(employeeResult.valuation_data) ? employeeResult.valuation_data.length : 0,
+          data_size: employeeResult.data_size,
+          processed_at: employeeResult.processed_at
+        };
+
+        // Cache the result
+        this.employeeRecordsCache.set(cacheKey, {
+          data: result,
+          timestamp: Date.now()
+        });
+
+        return result;
+      }
+    } catch (fastApiError) {
+      console.warn('FastAPI individual storage query failed, falling back to old method:', fastApiError.message);
+    }
+
+    // Fallback to old MongoDB aggregation method for backward compatibility
     const isValidObjectId = ObjectId.isValid(projectId);
     if (!isValidObjectId) {
       throw new Error('Invalid project ID');
@@ -1468,6 +1516,7 @@ export class ProjectService {
           case 'END_OF_YEAR_VALUATION':
             if (projectDetail?.compiledDataFiles && projectDetail.valuations['BASELINE_RUN']?.Data) {
               stageValuationParams['Data'] = projectDetail.valuations['BASELINE_RUN'].Data;
+              stageValuationParams['Assumptions'] = projectDetail.valuations['DISCOUNT_RATES_CHANGE']['Assumptions']
             }
             break;
 
@@ -1612,7 +1661,7 @@ export class ProjectService {
 
         // Call FastAPI endpoint
         try {
-          const fastApiUrl = `${process.env.VALUATION_SERVER_URL}/projects/${projectId}/valuations/${valuationStage}/run-batch`;
+          const fastApiUrl = `${process.env.VALUATION_SERVER_URL}/projects/${projectId}/valuations/${valuationStage}/run-batch?batch_size=500`;
           
           // Update progress
           this.progressService.updateProgress(

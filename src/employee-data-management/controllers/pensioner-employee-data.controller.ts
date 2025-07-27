@@ -97,6 +97,16 @@ export class PensionerEmployeeDataController {
     return this.pensionerEmployeeDataService.findByProjectAndStage(projectId, stageName);
   }
 
+  @Get('project/:projectId/stage/:stageName/valuated')
+  async findByValuatedEmployeesProjectAndStage(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string
+  ) {
+    return this.pensionerEmployeeDataService.findByValuatedEmployeesProjectAndStage(projectId, stageName);
+  }
+
+  
+
   @Get('employee-code/:employeeCode')
   async findByEmployeeCode(@Param('employeeCode') employeeCode: string) {
     const employeeCodeNum = parseInt(employeeCode, 10);

@@ -91,6 +91,14 @@ export class ActiveEmployeeDataController {
     return this.activeEmployeeDataService.findByProjectAndStage(projectId, stageName);
   }
 
+  @Get('project/:projectId/stage/:stageName/valuated')
+  async findByValuatedEmployeesProjectAndStage(
+    @Param('projectId') projectId: string,
+    @Param('stageName') stageName: string
+  ) {
+    return this.activeEmployeeDataService.findByValuatedEmployeesProjectAndStage(projectId, stageName);
+  }
+
   @Get('employee-code/:employeeCode')
   async findByEmployeeCode(@Param('employeeCode') employeeCode: string) {
     return this.activeEmployeeDataService.findByEmployeeCode(employeeCode);
